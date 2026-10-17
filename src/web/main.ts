@@ -1,21 +1,4 @@
 import "./styles.css";
-import {
-  createIcons,
-  ArrowRight,
-  ArrowUpRight,
-  Copy,
-  Zap,
-  Sprout,
-  Heart,
-  ChartNoAxesColumn,
-  X,
-  Plus,
-  Search,
-  Download,
-  Pencil,
-  Trash2,
-  Check,
-} from "lucide";
 type LinkData = {
   slug: string;
   label: string | null;
@@ -47,25 +30,6 @@ declare global {
 }
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   document.querySelector<T>(selector)!;
-const icons = () =>
-  createIcons({
-    icons: {
-      ArrowRight,
-      ArrowUpRight,
-      Copy,
-      Zap,
-      Sprout,
-      Heart,
-      ChartNoAxesColumn,
-      X,
-      Plus,
-      Search,
-      Download,
-      Pencil,
-      Trash2,
-      Check,
-    },
-  });
 const esc = (v: unknown) =>
   String(v ?? "").replace(
     /[&<>"']/g,
@@ -119,7 +83,6 @@ async function copy(value: string, button: HTMLButtonElement) {
     button.textContent = "Đã sao chép";
     setTimeout(() => {
       button.innerHTML = old;
-      icons();
     }, 1800);
   } catch {
     message(
@@ -166,7 +129,6 @@ async function account() {
       location.href = "/";
     });
   }
-  icons();
 }
 async function home() {
   const form = $<HTMLFormElement>("#shorten-form");
@@ -290,7 +252,7 @@ let links: LinkData[] = [],
   stats: Stats | null = null;
 function card(l: LinkData) {
   const active = l.status === "active" && l.expires_at > Date.now();
-  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || l.slug)} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Dữ liệu đã được dọn")}</div><div class="link-meta">Tạo ${date(l.created_at)} · Hạn ${date(l.expires_at)} (giờ Việt Nam)</div></div><div class="actions"><button class="icon-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}"><i data-lucide="copy"></i></button>${active ? `<button class="icon-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}"><i data-lucide="pencil"></i></button>` : ""}<button class="icon-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}"><i data-lucide="chart-no-axes-column"></i></button><button class="icon-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}"><i data-lucide="trash-2"></i></button></div></article>`;
+  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || l.slug)} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Dữ liệu đã được dọn")}</div><div class="link-meta">Tạo ${date(l.created_at)} · Hạn ${date(l.expires_at)} (giờ Việt Nam)</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
 }
 async function loadLinks(append = false) {
   try {
@@ -309,7 +271,6 @@ async function loadLinks(append = false) {
         "#dashboard-notice",
         "Hệ thống đang bảo vệ thời hạn link trong thời gian kiểm tra dữ liệu truy cập. Hạn cố định vẫn được áp dụng.",
       );
-    icons();
   } catch (e) {
     message("#dashboard-notice", (e as Error).message, true);
   }
@@ -610,7 +571,6 @@ async function admin() {
       });
   });
 }
-icons();
 configureDialogs();
 try {
   await account();

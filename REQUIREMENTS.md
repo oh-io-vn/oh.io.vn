@@ -12,7 +12,7 @@ Các giới hạn thử nghiệm và ngưỡng giảm tải dưới đây là c�
 - Xây công cụ rút gọn link hữu ích cho cộng đồng, đồng thời giúp chủ dự án thử sức xây dựng và vận hành sản phẩm thực tế.
 - Đối tượng là bất kỳ ai cần rút gọn link; giao diện chỉ hỗ trợ tiếng Việt.
 - Miễn phí cho người sử dụng; ưu tiên vận hành bằng các gói miễn phí.
-- Mã nguồn mở trên GitHub, giấy phép MIT cho phần mã nguồn của dự án. Giữ thông tin giấy phép của font, icon và thư viện bên thứ ba.
+- Mã nguồn mở trên GitHub, giấy phép MIT cho phần mã nguồn của dự án. Giữ thông tin giấy phép của font và thư viện bên thứ ba.
 - Hiện là dự án phi thương mại. Có thể cân nhắc yếu tố thương mại hạn chế trong tương lai để duy trì dịch vụ; chưa có mô hình kinh doanh được chốt.
 - Cho phép đóng góp tự nguyện, không bắt buộc và không gắn với điều kiện được chuyển hướng.
 - Không tự nâng gói trả phí hoặc tự bật dịch vụ có thể phát sinh phí. Chi phí mới phải là quyết định riêng của chủ dự án.
@@ -217,7 +217,7 @@ Các giá trị sau đã được thống nhất làm cấu hình thử nghiệm
 - Phong cách siêu tối giản, phẳng, sáng sủa.
 - Màu nhấn xanh nước biển sáng, thiên pastel; chữ và điều khiển phải dễ đọc.
 - Một họ font duy nhất: Space Grotesk; kiểm tra hiển thị tiếng Việt đầy đủ.
-- Icon Lucide: <https://lucide.dev/>.
+- Không sử dụng icon hoặc emoji trong giao diện, không dùng thư viện icon. Các nút thao tác dùng chữ rõ nghĩa; không có favicon đồ họa.
 - Sử dụng thuận tiện trên điện thoại và máy tính; thao tác bàn phím, nhãn điều khiển và trạng thái lỗi rõ ràng.
 - Không ép đăng nhập khi khách chỉ muốn tạo link trong hạn mức.
 - Liên kết đóng góp nhẹ nhàng trên trang chủ, trang quản lý và thông báo giảm chức năng ở các trang này; không chen vào chuyển hướng hợp lệ.

@@ -51,7 +51,7 @@ Không cần Vercel, Redis, KV, Queues hoặc Durable Objects ngay ở bản đ�
 
 Phiên bản thư viện sẽ được chọn ở lúc khởi tạo, không coi phiên bản mới nhất là mặc định an toàn. Kiểm tra khả năng tương thích và giấy phép.
 
-Space Grotesk được phục vụ từ Static Assets với subset tiếng Việt phù hợp. Chỉ tải các icon Lucide được dùng. Trang chủ có nội dung giới thiệu/hướng dẫn sẵn trong HTML; không cần dùng một SPA lớn.
+Space Grotesk được phục vụ từ Static Assets với subset tiếng Việt phù hợp. Giao diện chỉ dùng chữ cho các nút thao tác, không icon, emoji hoặc thư viện icon. Trang chủ có nội dung giới thiệu/hướng dẫn sẵn trong HTML; không cần dùng một SPA lớn.
 
 ## 3. Giới hạn nền tảng ảnh hưởng trực tiếp đến thiết kế
 
@@ -248,7 +248,7 @@ Không cần chia thành nhiều repository hoặc nhiều ứng dụng backend.
 
 ### Chặng 5: giao diện, nội dung và sẵn sàng vận hành
 
-- Hoàn thiện giao diện tối giản, font tiếng Việt, Lucide, điện thoại, bàn phím và trạng thái lỗi.
+- Hoàn thiện giao diện tối giản bằng chữ, font tiếng Việt, điện thoại, bàn phím và trạng thái lỗi.
 - Nội dung công khai, SEO cơ bản, sitemap trang nội dung, privacy/terms/report/about, đóng góp nếu cấu hình.
 - Không index dữ liệu riêng tư; crawler không được dùng làm lý do bỏ kiểm tra quyền.
 - Backup tự động và restore thử; kiểm tra secrets, log retention và hướng dẫn vận hành.
