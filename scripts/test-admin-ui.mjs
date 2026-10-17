@@ -96,6 +96,9 @@ try {
     statsDelay = 0,
     failure = false,
     editFailure = false,
+    actionFailure = false,
+    actionDelay = 0,
+    actions = [],
     lastEdit;
   await page.route("**/api/**", async (route) => {
     const request = route.request(),
@@ -113,6 +116,28 @@ try {
         admin: member,
         csrf: "fixture-only",
       });
+    if (path === "/api/admin/action") {
+      assert.equal(request.method(), "POST");
+      assert.equal(request.headers()["x-csrf-token"], "fixture-only");
+      const body = request.postDataJSON();
+      actions.push(body);
+      if (actionDelay)
+        await new Promise((resolve) => setTimeout(resolve, actionDelay));
+      if (actionFailure)
+        return json({ error: "Dịch vụ đang bận. Hãy thử lại." }, 503);
+      if (body.action === "block_user") {
+        users.find((u) => u.id === body.subject).blocked = body.blocked ? 1 : 0;
+      } else if (body.action === "block_link") {
+        Object.assign(
+          links.find((l) => l.slug === body.subject),
+          {
+            status: "blocked",
+            effective_status: "blocked",
+          },
+        );
+      } else assert.fail("Unexpected directory action");
+      return json({ ok: true });
+    }
     if (path.endsWith("/edit")) {
       if (editFailure) return json({ error: "Địa chỉ đã bị chặn." }, 400);
       lastEdit = { path, body: request.postDataJSON() };
@@ -243,6 +268,35 @@ try {
       0,
     );
     await capture(`links-${width}`);
+    const lockLink = page.locator(
+      '[data-directory-action="block-link"][data-slug="tai-lieu"]',
+    );
+    assert.equal(
+      await lockLink.evaluate((el) => getComputedStyle(el).color),
+      "rgb(165, 50, 50)",
+    );
+    assert.equal(
+      await page
+        .locator('[data-directory-action="block-link"][data-slug="da-khoa"]')
+        .count(),
+      0,
+    );
+    await lockLink.locator("svg").click();
+    assert.equal(actions.length, 0, "Opening confirmation must not submit");
+    assert.match(
+      await page.locator("#admin-confirm-subject").textContent(),
+      /oh.io.vn\/tai-lieu/,
+    );
+    assert.match(
+      await page.locator("#admin-confirm-description").textContent(),
+      /chưa hỗ trợ mở khóa link/,
+    );
+    await capture(`confirm-link-${width}`);
+    await page.keyboard.press("Escape");
+    assert.equal(
+      await page.locator(":focus").getAttribute("data-directory-action"),
+      "block-link",
+    );
     if (width >= 768) {
       const tops = await page
         .locator(".directory-row")
@@ -287,6 +341,43 @@ try {
       /3 tài khoản/,
     );
     await capture(`users-${width}`);
+    const lockUser = page.locator(
+      '[data-directory-action="toggle-user"][data-user-id="one"]',
+    );
+    assert.equal(
+      await lockUser.evaluate((el) => getComputedStyle(el).color),
+      "rgb(165, 50, 50)",
+    );
+    await lockUser.click();
+    assert.match(
+      await page.locator("#admin-confirm-subject").textContent(),
+      /test@example.invalid/,
+    );
+    assert.match(
+      await page.locator("#admin-confirm-description").textContent(),
+      /Các link của tài khoản không tự bị khóa/,
+    );
+    assert.equal(
+      await page
+        .locator("#confirm-admin-action")
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      "rgb(165, 50, 50)",
+    );
+    await capture(`confirm-user-${width}`);
+    await page.locator("#admin-confirm-dialog [data-close]").click();
+    assert.equal(actions.length, 0, "Cancel must not submit");
+    await page
+      .locator('[data-directory-action="toggle-user"][data-user-id="two"]')
+      .click();
+    assert.equal(
+      await page.locator("#admin-confirm-title").textContent(),
+      "Mở khóa tài khoản?",
+    );
+    assert.match(
+      await page.locator("#admin-confirm-description").textContent(),
+      /Các link đã khóa vẫn giữ nguyên/,
+    );
+    await page.keyboard.press("Escape");
     await page.locator('.user-row a[href*="owner=one"]').click();
     await ready();
     assert.equal(await page.locator(".directory-row").count(), 2);
@@ -297,6 +388,135 @@ try {
     await capture(`owner-${width}`);
   }
   await page.setViewportSize({ width: 390, height: 844 });
+  // Directory actions: confirmation, error recovery, focus, stale refresh and filters.
+  await goto("?view=users&state=active&q=test");
+  await page
+    .locator('[data-directory-action="toggle-user"][data-user-id="one"]')
+    .click();
+  actionFailure = true;
+  await page.locator("#confirm-admin-action").click();
+  await page
+    .locator("#admin-confirm-message")
+    .filter({ hasText: "Dịch vụ đang bận" })
+    .waitFor();
+  assert(await page.locator("#admin-confirm-dialog").isVisible());
+  assert.equal(users[0].blocked, 0);
+  await capture("action-error-mobile");
+  actionFailure = false;
+  actionDelay = 800;
+  listDelay = 800;
+  const beforeSubmit = actions.length;
+  await page.locator("#confirm-admin-action").click();
+  await page.waitForSelector('#confirm-admin-action[aria-busy="true"]');
+  assert(await page.locator("#confirm-admin-action").isDisabled());
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  await page.locator("#admin-confirm-dialog [data-close]").click();
+  assert(
+    await page.locator("#admin-confirm-dialog").isVisible(),
+    "Cannot dismiss while saving",
+  );
+  await page.locator("#directory-results .loading-placeholder").waitFor();
+  assert(
+    await page.locator("#directory-query").isDisabled(),
+    "Keep filters disabled until refresh finishes",
+  );
+  assert(await page.locator("#confirm-admin-action").isDisabled());
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  actionDelay = 0;
+  listDelay = 0;
+  assert.equal(
+    actions.length,
+    beforeSubmit + 1,
+    "Only one request while pending",
+  );
+  assert.deepEqual(actions.at(-1), {
+    action: "block_user",
+    subject: "one",
+    blocked: true,
+  });
+  assert.equal(
+    await page.locator(".user-row").count(),
+    0,
+    "Blocked account leaves active filter",
+  );
+  assert.match(page.url(), /state=active/);
+  assert.match(page.url(), /q=test/);
+  assert.equal(
+    await page.locator(":focus").getAttribute("id"),
+    "directory-message",
+  );
+  assert.match(
+    await page.locator("#directory-message").textContent(),
+    /Đã khóa tài khoản/,
+  );
+  assert.equal(links[0].status, "active", "Account lock must not lock links");
+  await goto("?view=users&state=blocked");
+  await page
+    .locator('[data-directory-action="toggle-user"][data-user-id="one"]')
+    .click();
+  await page.locator("#confirm-admin-action").click();
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  assert.deepEqual(actions.at(-1), {
+    action: "block_user",
+    subject: "one",
+    blocked: false,
+  });
+  assert.equal(await page.locator('[data-user-id="one"]').count(), 0);
+  assert.equal(users[0].blocked, 0);
+  await goto("?view=links&owner=one&status=active");
+  await page
+    .locator('[data-directory-action="block-link"][data-slug="tai-lieu"]')
+    .click();
+  await page.locator("#confirm-admin-action").click();
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  assert.deepEqual(actions.at(-1), {
+    action: "block_link",
+    subject: "tai-lieu",
+  });
+  assert.equal(await page.locator('[aria-label="Link tai-lieu"]').count(), 0);
+  assert.match(page.url(), /owner=one/);
+  assert.match(page.url(), /status=active/);
+  await goto();
+  assert.equal(
+    await page
+      .locator('[data-directory-action="block-link"][data-slug="tai-lieu"]')
+      .count(),
+    0,
+  );
+  assert.equal(
+    await page
+      .locator('[data-directory-action="stats"][data-slug="tai-lieu"]')
+      .count(),
+    1,
+  );
+  await page
+    .locator('[data-directory-action="block-link"][data-slug="khach"]')
+    .click();
+  failure = true;
+  await page.locator("#confirm-admin-action").click();
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  assert.equal(links[1].status, "blocked");
+  assert.match(
+    await page.locator("#directory-message").textContent(),
+    /Đã khóa link.*Chưa tải được dữ liệu mới/,
+  );
+  const afterWrite = actions.length;
+  failure = false;
+  await page.locator("#directory-refresh").click();
+  await ready();
+  assert.equal(
+    actions.length,
+    afterWrite,
+    "Retry refresh must not repeat the write",
+  );
+  assert.equal(
+    await page
+      .locator('[data-directory-action="block-link"][data-slug="khach"]')
+      .count(),
+    0,
+  );
+  links = structuredClone(initial);
   await goto("?view=users");
   await page.locator('.user-row a[href*="owner=empty"]').click();
   await ready();
@@ -350,6 +570,24 @@ try {
   await ready();
   assert.equal(await page.locator(".directory-row").count(), 2);
   assert(page.url().includes("cursor=25"));
+  await page.locator("#directory-query").fill("not-submitted");
+  await page
+    .locator('[data-directory-action="block-link"][data-slug="page-25"]')
+    .click();
+  await page.locator("#confirm-admin-action").click();
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  assert(
+    page.url().includes("cursor=25"),
+    "Locking a link preserves the current page",
+  );
+  assert.equal(
+    await page.locator("#directory-query").inputValue(),
+    "",
+    "Refresh uses the applied search, not an unsent draft",
+  );
+  assert.equal(await page.locator(".directory-row").count(), 2);
+  assert(await page.locator("#directory-next").isDisabled());
+  assert(await page.locator("#directory-prev").isEnabled());
   await page.locator("#directory-prev").click();
   await ready();
   assert.equal(await page.locator(".directory-row").count(), 25);

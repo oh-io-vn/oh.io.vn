@@ -79,6 +79,100 @@ beforeEach(async () => {
   await user("other");
 });
 describe("admin link and account directories", () => {
+  it("locks and unlocks an account without changing its links, revoking sessions", async () => {
+    await link("account-link");
+    await headers("owner");
+    const adminHeaders = await headers();
+    const action = (blocked: boolean) =>
+      SELF.fetch("http://localhost/api/admin/action", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          action: "block_user",
+          subject: "owner",
+          blocked,
+        }),
+      });
+    expect((await action(true)).status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT blocked FROM users WHERE id='owner'",
+      ).first(),
+    ).toEqual({ blocked: 1 });
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS count FROM sessions WHERE user_id='owner'",
+      ).first(),
+    ).toEqual({ count: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT status FROM links WHERE slug='account-link'",
+      ).first(),
+    ).toEqual({ status: "active" });
+    expect((await get("links", "owner")).status).toBe(403);
+    expect((await action(false)).status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT blocked FROM users WHERE id='owner'",
+      ).first(),
+    ).toEqual({ blocked: 0 });
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS count FROM admin_audit WHERE actor='admin' AND action='block_user' AND subject='owner'",
+      ).first(),
+    ).toEqual({ count: 2 });
+  });
+  it("blocks a link, retaining ownership and stats and rejecting unsafe admin requests", async () => {
+    await link("lock-link");
+    await env.DB.prepare(
+      "INSERT INTO analytics(slug,day,source,device,clicks) VALUES(?,?,?,?,?)",
+    )
+      .bind("lock-link", vietnamDay(now), "Khác", "Máy tính", 3)
+      .run();
+    const body = JSON.stringify({ action: "block_link", subject: "lock-link" });
+    const adminHeaders = await headers();
+    const noCsrf = { ...adminHeaders, "X-CSRF-Token": "" };
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/admin/action", {
+          method: "POST",
+          headers: noCsrf,
+          body,
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/admin/action", {
+          method: "POST",
+          headers: await headers("owner"),
+          body,
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/admin/action", {
+          method: "POST",
+          headers: adminHeaders,
+          body,
+        })
+      ).status,
+    ).toBe(200);
+    const detail = (await (await get("links/lock-link")).json()) as any;
+    expect(detail.link.status).toBe("blocked");
+    expect(detail.link.owner_id).toBe("owner");
+    expect(detail.link.target).toBe("https://example.com/page");
+    const stats = (await (await get("links/lock-link/stats")).json()) as any;
+    expect(stats.rows[0].clicks).toBe(3);
+    const list = (await (await get("links?status=active")).json()) as any;
+    expect(list.total).toBe(0);
+    expect(
+      await env.DB.prepare(
+        "SELECT actor,action,subject FROM admin_audit",
+      ).first(),
+    ).toEqual({ actor: "admin", action: "block_link", subject: "lock-link" });
+  });
   it("rolls back the link edit when its audit cannot be written", async () => {
     await link("atomic-edit");
     await env.DB.prepare(

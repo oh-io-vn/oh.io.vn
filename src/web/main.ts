@@ -916,10 +916,115 @@ const expiryLabel = (l: AdminLink) =>
     : date(l.effective_expires_at);
 function directoryLink(l: AdminLink) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${l.effective_status === "blocked" ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button></div></article>`;
+  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${l.effective_status === "blocked" ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button>${active ? `<button class="action-button danger" data-directory-action="block-link" data-slug="${esc(l.slug)}">${icon("lock")}<span>Khóa link</span></button>` : ""}</div></article>`;
 }
 function directoryUser(u: AdminUser) {
-  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked ? " danger" : ""}">${u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p></div><a class="secondary" href="${ownerUrl(u.id)}">${icon("list")}<span>Xem link</span></a></article>`;
+  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked ? " danger" : ""}">${u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p></div><div class="actions"><a class="action-button" href="${ownerUrl(u.id)}">${icon("list")}<span>Xem link</span></a><button class="action-button danger" data-directory-action="toggle-user" data-user-id="${esc(u.id)}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button></div></article>`;
+}
+function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
+  let actionPending = false;
+  const action = async (
+    body: Record<string, unknown>,
+    feedback: string,
+    success: string,
+    button: HTMLButtonElement,
+  ) => {
+    if (actionPending) return false;
+    actionPending = true;
+    const content = button.innerHTML;
+    const controls = [
+      ...root.querySelectorAll<
+        HTMLInputElement | HTMLButtonElement | HTMLSelectElement
+      >("input, button, select"),
+    ].filter((control) => !control.closest(".directory-pagination"));
+    const disabled = controls.map((control) => control.disabled);
+    controls.forEach((control) => {
+      control.disabled = true;
+    });
+    button.disabled = true;
+    setControlLabel(button, "Đang lưu…", "loading");
+    button.setAttribute("aria-busy", "true");
+    message(feedback, "Đang lưu thay đổi…");
+    try {
+      await api("/api/admin/action", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      try {
+        if ((await refresh()) === false) throw new Error("Refresh failed");
+        message(feedback, success);
+      } catch {
+        message(
+          feedback,
+          `${success} Chưa tải được dữ liệu mới. Hãy tải lại trang để kiểm tra.`,
+          true,
+        );
+      }
+      return true;
+    } catch (e) {
+      message(feedback, (e as Error).message, true);
+      return false;
+    } finally {
+      // Pagination is owned by the loader and may change after a filtered row disappears.
+      controls.forEach((control, index) => {
+        control.disabled = disabled[index];
+      });
+      button.disabled = false;
+      button.innerHTML = content;
+      button.removeAttribute("aria-busy");
+      actionPending = false;
+    }
+  };
+  const confirmDialog = $<HTMLDialogElement>("#admin-confirm-dialog");
+  const confirmButton = $<HTMLButtonElement>("#confirm-admin-action");
+  const confirmAction = (
+    body: Record<string, unknown>,
+    title: string,
+    subject: string,
+    description: string,
+    feedback: string,
+    success: string,
+    afterSuccess?: () => void,
+  ) => {
+    if (actionPending) return;
+    const trigger = document.activeElement as HTMLElement | null;
+    $("#admin-confirm-title").textContent = title;
+    $("#admin-confirm-subject").textContent = subject;
+    $("#admin-confirm-description").textContent = description;
+    setControlLabel(
+      confirmButton,
+      title.replace(/\?$/, ""),
+      body.action === "remove_block" || body.blocked === false
+        ? "unlock"
+        : body.action === "block_user" || body.action === "block_user_links"
+          ? "lock"
+          : "block",
+    );
+    message("#admin-confirm-message", "");
+    confirmButton.onclick = async () => {
+      if (
+        await action(body, "#admin-confirm-message", success, confirmButton)
+      ) {
+        const result = $("#admin-confirm-message");
+        message(
+          feedback,
+          result.textContent ?? success,
+          result.classList.contains("error"),
+        );
+        confirmDialog.close();
+        afterSuccess?.();
+        // A refreshed row or a filtered-out result removes the original trigger.
+        if (trigger?.isConnected && !trigger.matches(":disabled")) {
+          trigger.focus();
+        } else {
+          $(feedback).tabIndex = -1;
+          $(feedback).focus();
+        }
+      }
+    };
+    confirmDialog.showModal();
+  };
+  return { action, confirmAction };
 }
 async function adminDirectory(view: "links" | "users") {
   const root = $("#admin-directory");
@@ -973,7 +1078,8 @@ async function adminDirectory(view: "links" | "users") {
   clearFilter.hidden =
     !query.value && state.value === "all" && !owner && !current;
   let requestId = 0,
-    pageLinks: AdminLink[] = [];
+    pageLinks: AdminLink[] = [],
+    pageUsers: AdminUser[] = [];
   let historyCursors: string[] = [];
   const results = $("#directory-results");
   let loaded = false;
@@ -1013,6 +1119,7 @@ async function adminDirectory(view: "links" | "users") {
       nextCursor = data.next;
       expiryHold = !!data.expiryHeld;
       pageLinks = data.links || [];
+      pageUsers = data.users || [];
       const count = view === "links" ? pageLinks.length : data.users.length;
       results.innerHTML = count
         ? view === "links"
@@ -1069,6 +1176,9 @@ async function adminDirectory(view: "links" | "users") {
       }
     }
   };
+  const { confirmAction } = setupAdminActions(root, () =>
+    load(current, "refresh"),
+  );
   setupLinkDialogs(() => load(""));
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -1086,8 +1196,39 @@ async function adminDirectory(view: "links" | "users") {
       "[data-directory-action]",
     );
     if (!button) return;
+    if (button.dataset.directoryAction === "toggle-user") {
+      const user = pageUsers.find((u) => u.id === button.dataset.userId);
+      if (!user) return;
+      const blocking = !user.blocked;
+      const title = blocking ? "Khóa tài khoản" : "Mở khóa tài khoản";
+      confirmAction(
+        { action: "block_user", subject: user.id, blocked: blocking },
+        title + "?",
+        user.email + (user.name ? " - " + user.name : ""),
+        blocking
+          ? "Tài khoản này sẽ bị đăng xuất và không thể đăng nhập hoặc quản lý link. Các link của tài khoản không tự bị khóa." +
+              (user.email === me.user?.email
+                ? " Đây là tài khoản bạn đang dùng."
+                : "")
+          : "Tài khoản này sẽ được đăng nhập và quản lý link trở lại. Các link đã khóa vẫn giữ nguyên trạng thái.",
+        "#directory-message",
+        blocking ? "Đã khóa tài khoản." : "Đã mở khóa tài khoản.",
+      );
+      return;
+    }
     const link = pageLinks.find((l) => l.slug === button.dataset.slug);
     if (!link) return;
+    if (button.dataset.directoryAction === "block-link") {
+      confirmAction(
+        { action: "block_link", subject: link.slug },
+        "Khóa link?",
+        "oh.io.vn/" + link.slug + (link.label ? " - " + link.label : ""),
+        "Link này sẽ ngừng chuyển hướng đến địa chỉ đích. Thống kê đã ghi nhận được giữ lại. Hiện chưa hỗ trợ mở khóa link.",
+        "#directory-message",
+        "Đã khóa link.",
+      );
+      return;
+    }
     if (button.dataset.directoryAction !== "detail") {
       await openLinkDialog(link, button.dataset.directoryAction || "");
       return;
@@ -1208,107 +1349,10 @@ async function admin() {
   }
   $("#admin-content").hidden = false;
   message("#admin-message", "");
-  let actionPending = false;
-  const action = async (
-    body: Record<string, unknown>,
-    feedback: string,
-    success: string,
-    button: HTMLButtonElement,
-  ) => {
-    if (actionPending) return false;
-    actionPending = true;
-    const content = button.innerHTML;
-    const controls = [
-      ...$("#admin-content").querySelectorAll<
-        HTMLInputElement | HTMLButtonElement | HTMLSelectElement
-      >("input, button, select"),
-    ];
-    const disabled = controls.map((control) => control.disabled);
-    controls.forEach((control) => {
-      control.disabled = true;
-    });
-    button.disabled = true;
-    setControlLabel(button, "Đang lưu…", "loading");
-    button.setAttribute("aria-busy", "true");
-    message(feedback, "Đang lưu thay đổi…");
-    try {
-      await api("/api/admin/action", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      try {
-        await refresh();
-        message(feedback, success);
-      } catch {
-        message(
-          feedback,
-          `${success} Chưa tải được dữ liệu mới. Hãy tải lại trang để kiểm tra.`,
-          true,
-        );
-      }
-      return true;
-    } catch (e) {
-      message(feedback, (e as Error).message, true);
-      return false;
-    } finally {
-      controls.forEach((control, index) => {
-        control.disabled = disabled[index];
-      });
-      button.disabled = false;
-      button.innerHTML = content;
-      button.removeAttribute("aria-busy");
-      actionPending = false;
-    }
-  };
-  const confirmDialog = $<HTMLDialogElement>("#admin-confirm-dialog");
-  const confirmButton = $<HTMLButtonElement>("#confirm-admin-action");
-  const confirmAction = (
-    body: Record<string, unknown>,
-    title: string,
-    subject: string,
-    description: string,
-    feedback: string,
-    success: string,
-    afterSuccess?: () => void,
-  ) => {
-    if (actionPending) return;
-    $("#admin-confirm-title").textContent = title;
-    $("#admin-confirm-subject").textContent = subject;
-    $("#admin-confirm-description").textContent = description;
-    setControlLabel(
-      confirmButton,
-      title.replace(/\?$/, ""),
-      body.action === "remove_block" || body.blocked === false
-        ? "unlock"
-        : body.action === "block_user" || body.action === "block_user_links"
-          ? "lock"
-          : "block",
-    );
-    message("#admin-confirm-message", "");
-    confirmButton.onclick = async () => {
-      if (
-        await action(body, "#admin-confirm-message", success, confirmButton)
-      ) {
-        const result = $("#admin-confirm-message");
-        message(
-          feedback,
-          result.textContent ?? success,
-          result.classList.contains("error"),
-        );
-        confirmDialog.close();
-        afterSuccess?.();
-        // Refresh may replace the button that opened this dialog.
-        if (
-          !document.activeElement ||
-          document.activeElement === document.body
-        ) {
-          $(feedback).tabIndex = -1;
-          $(feedback).focus();
-        }
-      }
-    };
-    confirmDialog.showModal();
-  };
+  const { action, confirmAction } = setupAdminActions(
+    $("#admin-content"),
+    refresh,
+  );
   $("#policy-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;

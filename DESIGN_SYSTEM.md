@@ -146,6 +146,11 @@ rows with owner, status, expiry and labeled actions, capped at 25 records per pa
 Long destinations are limited to two lines in the list; the detail dialog shows
 the complete value. Account rows show the total retained links and lead to an
 owner-filtered list. Keep loading, retry and empty feedback beside that list.
+Place account lock/unlock and active-link lock actions in the same row action
+group. Use red labeled buttons and the shared admin confirmation dialog, naming
+the account or link and its consequences. Account locks do not lock links.
+Refresh the current filters/page after saving and distinguish write errors from
+refresh errors. Keep statistics available for blocked links.
 Reuse the edit/statistics dialogs across owner and admin views. Keep expiry hold,
 guest analytics limitations and removed ownership information explicit.
 

@@ -1689,6 +1689,9 @@ p,
   grid-column: 1 / -1;
   justify-content: flex-start;
 }
+.directory-row .actions a {
+  text-decoration: none;
+}
 .directory-row .directory-owner-line {
   margin-top: var(--space-3);
 }
@@ -1701,9 +1704,6 @@ p,
 }
 .directory-pagination button:disabled {
   cursor: default;
-}
-.user-row > a {
-  justify-self: start;
 }
 .link-detail-fields {
   margin: 0;
@@ -1739,7 +1739,7 @@ p,
     display: flex;
     flex-wrap: wrap;
   }
-  .directory-row .actions button {
+  .directory-row .actions > :is(button, a) {
     flex: 1 1 auto;
   }
 }

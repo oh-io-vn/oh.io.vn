@@ -135,6 +135,10 @@
 - Admin dùng chung validation và hộp sửa/thống kê với chủ link, nhưng qua route
   `/api/admin/links`. Không mở rộng quyền của `/api/links` cho người khác.
   Ghi audit cùng giao dịch sửa link. Không cho sửa/hồi sinh link đã ngừng hoạt động.
+- Nút khóa link và khóa/mở khóa tài khoản nằm ngay trong danh sách, dùng API
+  `/api/admin/action` và hộp xác nhận chung với Vận hành. Nêu đúng đối tượng,
+  phân biệt khóa đăng nhập với khóa link. Dùng màu đỏ, ngăn gửi trùng và giữ
+  bộ lọc/trang hiện tại khi tải lại. Nếu đã lưu nhưng tải lại lỗi, báo rõ đã lưu.
 - Thử thêm `node scripts/test-admin-ui.mjs` khi sửa danh sách quản trị: phân trang,
   tìm kiếm, tài khoản không có link, lỗi/tải chậm, hộp chi tiết, sửa, thống kê,
   responsive và dữ liệu dài. Chỉ dùng API giả trên localhost.
