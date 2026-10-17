@@ -20,7 +20,7 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
   - `karl.ns.cloudflare.com`.
 - Nameserver trước đó: `ns1.zonedns.vn`, `ns2.zonedns.vn`, `ns3.zonedns.vn`, `ns4.zonedns.vn`.
 - Chủ dự án đã xác nhận chuyển DNS sang Cloudflare. Yêu cầu đổi nameserver đã được gửi tại Nhân Hòa; đã tải lại trang và kiểm chứng hai nameserver Cloudflare được lưu trong biểu mẫu, các ô nameserver thứ ba và thứ tư trống. Việc lưu tại nhà đăng ký chưa phải bằng chứng đã cập nhật xong tại registry/DNS công khai.
-- Tại lần kiểm tra gần nhất, Cloudflare vẫn hiển thị chờ registrar cập nhật nameserver; DNS đệ quy công khai vẫn trả nameserver cũ. Không coi việc gửi yêu cầu là bằng chứng domain đã Active.
+- Đã kiểm chứng DNS công khai qua resolver `1.1.1.1` trả hai nameserver Cloudflare mới; giao diện Cloudflare xác nhận domain đã kích hoạt với thông báo `Your domain is now protected by Cloudflare`.
 - Chưa có Worker, website hoặc bản ghi trỏ web được triển khai.
 
 ## Email báo cáo lạm dụng
@@ -28,10 +28,12 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - Địa chỉ nguồn yêu cầu: `abuse@oh.io.vn`.
 - Địa chỉ đích: `oh.io.vn@proton.me`.
 - Địa chỉ đích đã được thêm trong Cloudflare Email Routing và giao diện hiển thị `Verified`.
-- **Chưa hoàn tất chuyển tiếp:** chưa tạo quy tắc `abuse@`, chưa thêm bản ghi MX/TXT của Email Routing. Cloudflare chặn onboarding khi zone chưa Active.
+- Đã kích hoạt Email Routing sau xác nhận của chủ dự án và tạo duy nhất quy tắc `abuse@oh.io.vn` → `oh.io.vn@proton.me`; giao diện quy tắc hiển thị `Active`.
+- Catch-all ở trạng thái `Disabled`.
+- DNS công khai đã có ba MX của Cloudflare, TXT SPF và TXT DKIM `cf2024-1._domainkey`. Ưu tiên MX được Cloudflare cấp trong lần thiết lập này: route3 = 55, route1 = 79, route2 = 99; không hard-code các giá trị này làm mặc định cho domain khác.
+- Đã tải lại trang tổng quan và kiểm chứng `Routing status: Enabled`, `DNS records: Locked`, một quy tắc và một địa chỉ đích.
 - Không bật catch-all. Không cấu hình mailbox gửi thư mang địa chỉ `abuse@` trong bước này.
-- Sau khi được xác nhận và zone Active: bật Email Routing, kiểm tra/thêm đúng bản ghi cần thiết, tạo quy tắc chính xác rồi kiểm chứng trạng thái Enabled.
-- Chỉ ghi đã kiểm chứng giao thư đầu cuối nếu thực sự thấy thư thử được nhận tại Proton. Hiện chưa gửi thư thử và chưa có bằng chứng giao thư đầu cuối.
+- Đã kiểm chứng giao thư đầu cuối: gửi một thư thử từ chính hộp Proton đến `abuse@oh.io.vn`, sau đó thấy bản nhận trong Inbox của `oh.io.vn@proton.me`, người nhận gốc vẫn là `abuse@oh.io.vn`. Giao diện hiển thị riêng bản `Sent` và bản `Inbox` trong cùng cuộc hội thoại, nhận ngày 17/10/2026 lúc 17:21 giờ Việt Nam.
 
 ## Đóng góp
 
@@ -45,10 +47,9 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 
 ## Công việc còn lại
 
-1. Kiểm chứng nameserver mới tại registry/DNS công khai và trạng thái Cloudflare Active.
-2. Hoàn tất quy tắc `abuse@`, các bản ghi cần thiết và xác minh tình trạng nhận thư; thực hiện xác nhận tại thời điểm thao tác nếu công cụ yêu cầu.
-3. Triển khai ứng dụng theo các chặng trong [ARCHITECTURE.md](ARCHITECTURE.md) khi bắt đầu phần code.
-4. Cấu hình Google OAuth, Turnstile, D1, backup, secrets và quy trình phát hành ở chặng triển khai tương ứng. Chưa tạo các khóa hoặc quyền truy cập mới trong bước chuẩn bị này.
+1. Theo dõi báo cáo lạm dụng tại địa chỉ đã cấu hình khi ứng dụng được mở công khai.
+2. Triển khai ứng dụng theo các chặng trong [ARCHITECTURE.md](ARCHITECTURE.md) khi bắt đầu phần code.
+3. Cấu hình Google OAuth, Turnstile, D1, backup, secrets và quy trình phát hành ở chặng triển khai tương ứng. Chưa tạo các khóa hoặc quyền truy cập mới trong bước chuẩn bị này.
 
 ## Bằng chứng local
 
