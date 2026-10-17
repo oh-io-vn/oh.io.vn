@@ -1,0 +1,12 @@
+ENVIRONMENT="development"
+APP_ORIGIN="http://localhost:8787"
+# Generate a random secret locally. Never reuse the example as a real secret.
+HMAC_SECRET=""
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+TURNSTILE_SITE_KEY="1x00000000000000000000AA"
+TURNSTILE_SECRET_KEY="1x0000000000000000000000000000000AA"
+ADMIN_GOOGLE_SUBS=""
+BACKUP_TOKEN=""
+# Only needed for real platform monitoring, never reuse production in local fixtures.
+CF_METRICS_TOKEN=""

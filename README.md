@@ -2,20 +2,40 @@
 
 Dự án công cụ rút gọn link miễn phí dành cho cộng đồng Việt Nam. Ưu tiên chuyển hướng trực tiếp, giao diện tối giản và vận hành gọn nhẹ bằng hạ tầng miễn phí.
 
-**Trạng thái:** đang chuẩn bị hạ tầng và đặc tả; chưa có ứng dụng rút gọn link được phát hành.
+**Trạng thái:** đã có ứng dụng và bộ kiểm thử local. D1 và Turnstile đã tạo, Google Auth đã cấu hình. Chưa phát hành trên domain thật: Cloudflare còn yêu cầu xác minh email tài khoản trước khi cho phép triển khai Workers. Không coi việc build đạt là dịch vụ đã chạy production.
 
 ## Tài liệu
 
 - [Yêu cầu đã thống nhất](REQUIREMENTS.md).
 - [Kiến trúc và kế hoạch triển khai đề xuất](ARCHITECTURE.md).
 - [Thông tin thiết lập và vận hành](SETUP.md).
+- [Chạy local, phát hành, sao lưu và xử lý sự cố](OPERATIONS.md).
+- [Giấy phép thành phần bên thứ ba](THIRD_PARTY_NOTICES.md).
 
-## Phạm vi dự kiến
+## Chức năng
 
 - Tạo link không cần đăng nhập; đăng nhập Google để quản lý và xem thống kê.
 - Link khách hết hạn sau 3 tháng không hoạt động; link tài khoản sau 12 tháng. Lượt truy cập hợp lệ được ghi nhận sẽ đặt lại thời hạn.
 - Thống kê 30 ngày, xuất Excel, giới hạn sử dụng và xử lý lạm dụng.
 - Cloudflare Workers, Static Assets, D1 và Turnstile; mã nguồn mở trên GitHub.
+
+## Phát triển
+
+```powershell
+npm ci --legacy-peer-deps
+Copy-Item .dev.vars.example .dev.vars
+# Điền secret local và khởi tạo theo OPERATIONS.md.
+npm run db:local
+npm run dev
+```
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
+
+Không dùng dữ liệu hoặc khóa production để thử local. Không có thông tin đăng nhập Google mặc định hay đường dẫn bỏ qua xác thực trong ứng dụng.
 
 ## Báo cáo lạm dụng
 

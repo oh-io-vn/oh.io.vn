@@ -1,0 +1,40 @@
+# Copy this workflow ONLY to the private oh-io-vn/backups repository.
+name: Sao lưu dữ liệu riêng tư
+on:
+  schedule:
+    - cron: "41 18 * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: daily-backup
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: vars.BACKUP_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version: 24
+      - name: Tải, mã hóa và tự kiểm chứng
+        run: node backup.mjs create
+        env:
+          BACKUP_ORIGIN: https://oh.io.vn
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: encrypted-d1-backup
+          path: backups/*.ohbk
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
+      - name: Xác nhận bản sao đã tải lên kho riêng tư
+        run: node backup.mjs ack
+        env:
+          BACKUP_ORIGIN: https://oh.io.vn
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}

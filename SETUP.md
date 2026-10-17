@@ -7,7 +7,7 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - Repository công khai: <https://github.com/oh-io-vn/oh.io.vn>.
 - Chủ sở hữu: tổ chức `oh-io-vn`.
 - Giấy phép mã nguồn: MIT.
-- Giai đoạn hiện tại: tài liệu yêu cầu, kiến trúc và chuẩn bị hạ tầng; chưa phát hành ứng dụng rút gọn link.
+- Giai đoạn hiện tại: đã viết ứng dụng, migration, giao diện, kiểm thử và công cụ sao lưu. Chưa phát hành ứng dụng trên domain thật.
 
 ## Domain
 
@@ -48,9 +48,22 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 
 ## Công việc còn lại
 
-1. Theo dõi báo cáo lạm dụng tại địa chỉ đã cấu hình khi ứng dụng được mở công khai.
-2. Triển khai ứng dụng theo các chặng trong [ARCHITECTURE.md](ARCHITECTURE.md) khi bắt đầu phần code.
-3. Cấu hình Google OAuth, Turnstile, D1, backup, secrets và quy trình phát hành ở chặng triển khai tương ứng. Chưa tạo các khóa hoặc quyền truy cập mới trong bước chuẩn bị này.
+1. Chủ tài khoản hoàn tất xác minh email Cloudflare. Lệnh triển khai hiện bị Cloudflare từ chối với lỗi 10034; giao diện cũng từ chối tạo token giám sát cho đến khi xác minh.
+2. Tạo token giám sát chỉ đọc đã được chủ dự án cho phép, lưu secrets, triển khai Worker và custom domain.
+3. Chạy đăng nhập Google thật, chốt định danh quản trị, kiểm tra Turnstile thật và các luồng trên domain thật.
+4. Chạy workflow backup riêng tư, kiểm tra artifact mã hóa và restore tách biệt; lấy snapshot usage/CPU thực tế trước khi mở nhận tạo link.
+5. Theo dõi báo cáo tại hi@oh.io.vn khi mở công khai.
+
+## Các tài nguyên đã tạo ngày 17/10/2026
+
+- Wrangler đã xác minh đúng tài khoản Cloudflare. OAuth credential được mã hóa và khóa lưu trong Windows Credential Manager; không nằm trong repository.
+- D1 `oh-io-vn`, vùng APAC, migration 0001 và 0002 đã áp dụng remote. Chưa có dữ liệu người dùng thật; chế độ tạo mới vẫn tắt.
+- Turnstile Managed `oh-io-vn`, hostname duy nhất `oh.io.vn`; public sitekey trong cấu hình, secret chỉ ở file local được Git bỏ qua, chờ upload Cloudflare Secrets sau khi xác minh email.
+- Google project riêng: tên `oh-io-vn`, ID `inspired-gift-511910-f7`. Web OAuth client `oh.io.vn Web`, callback duy nhất `https://oh.io.vn/auth/callback`, branding đã gắn trang chủ/privacy/terms. Giao diện Google xác nhận `In production`; chưa kiểm chứng đăng nhập đầu cuối khi website còn chưa deploy.
+- Kho `oh-io-vn/backups` đã tạo và kiểm tra `PRIVATE`; secrets mã hóa/endpoint đã đặt. Workflow không có bản sao dữ liệu thật cho đến khi endpoint production chạy được.
+- Kiểm thử local đã gồm giới hạn đồng thời, lịch tháng, redirect, quyền sở hữu, CSRF, cờ sự cố độc lập, mã hóa backup và khôi phục vào database khác. Luồng quản lý và xuất XLSX đã được thao tác trên Chrome với dữ liệu giả local; workbook tải về đã kiểm tra nội dung và không có ô công thức.
+
+Chi tiết lệnh và giới hạn vận hành tại [OPERATIONS.md](OPERATIONS.md). Không bật gói trả phí.
 
 ## Bằng chứng local
 

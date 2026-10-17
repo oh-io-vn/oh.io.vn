@@ -285,3 +285,14 @@ Không cần chủ dự án tự lựa chọn SQL, thư viện hoặc cấu trú
 - [Cloudflare Turnstile server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
 - [Google OpenID Connect](https://developers.google.com/identity/openid-connect/openid-connect).
 - [Hono on Cloudflare Workers](https://hono.dev/docs/getting-started/cloudflare-workers).
+
+## 14. Quyết định triển khai ngày 17/10/2026
+
+- Slug 3–64 ký tự ASCII chữ/số/gạch ngang/gạch dưới, chuẩn hóa chữ thường. Mã ngẫu nhiên 8 ký tự được tạo bằng crypto; không dùng ID tuần tự. Địa chỉ đích tối đa 4.096 ký tự, HTTP(S), không userinfo, không loop về oh.io.vn hoặc IP/hostname nội bộ nhận diện được. Không tải nội dung URL đích; kiểm tra cú pháp không phải kiểm tra uy tín và không ngăn mọi DNS rebinding hoặc tên miền trỏ nội bộ.
+- Thống kê nguồn theo nhóm hữu hạn Google/Facebook/Zalo/YouTube/TikTok/Instagram/Bing/Khác/Không xác định; phân loại thiết bị 3 nhóm.
+- Phiên 7 ngày. Khóa tài khoản và khóa toàn bộ link là hai hành động riêng. Yêu cầu xóa qua email, mục tiêu phản hồi 7 ngày.
+- Hạn mức 24 giờ dùng trigger D1, đã kiểm thử cạnh tranh. Phân trang dùng thời điểm tạo và slug để không bỏ sót khi timestamp trùng.
+- Thêm Durable Object SQLite chỉ giữ cờ sự cố độc lập với D1. Khi không đọc được cờ, hoãn xử lý link chạm hạn không hoạt động. Khi phục hồi cấp lại trọn thời hạn cho link còn active, giữ nguyên hạn cố định. Xem giới hạn khi cả hai kho cùng lỗi trong OPERATIONS.md.
+- Cron 10 phút, số liệu Workers/D1 cấp tài khoản và dung lượng D1 dự án. Snapshot cũ 2 giờ hoặc backup cũ 36 giờ thì đóng tạo mới. Các công tắc thủ công độc lập với mức tự động. Dọn từng lô nhỏ (tối đa 10 tombstone và 100 bucket mỗi lượt) để giới hạn số truy vấn/ghi.
+- Backup vào kho GitHub private riêng, mã hóa AES-256-GCM, artifact 7 ngày; pilot 2 MiB và 2.000 hàng/bảng, tự báo lỗi khi vượt. Kiểm tra khôi phục local đã đạt; backup production tự động còn chờ endpoint thật.
+- Chưa đo CPU/usage production hoặc kiểm chứng Google/Turnstile trên domain thật do Cloudflare yêu cầu xác minh email tài khoản. Không coi các phép kiểm tra local là điều kiện mở công khai đã hoàn tất.
