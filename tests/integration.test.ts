@@ -49,6 +49,49 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe("D1 và đường chuyển hướng thật", () => {
+  it("đăng xuất production thu hồi phiên và xóa cookie __Host với Secure", async () => {
+    const token = "d".repeat(64);
+    await env.DB.prepare(
+      "INSERT INTO sessions(hash,user_id,expires_at) VALUES(?,?,?)",
+    )
+      .bind(await hash(token), "u1", Date.now() + 86400000)
+      .run();
+    const production = {
+      ...env,
+      ENVIRONMENT: "production",
+      APP_ORIGIN: "https://oh.io.vn",
+    };
+    const cookie = { Cookie: "__Host-oh_session=" + token };
+    const identity = await worker.fetch(
+      new Request("https://oh.io.vn/api/me", { headers: cookie }),
+      production,
+      createExecutionContext(),
+    );
+    const { csrf } = (await identity.json()) as { csrf: string };
+    const result = await worker.fetch(
+      new Request("https://oh.io.vn/api/logout", {
+        method: "POST",
+        headers: {
+          ...cookie,
+          Origin: "https://oh.io.vn",
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
+        body: "{}",
+      }),
+      production,
+      createExecutionContext(),
+    );
+    expect(result.status).toBe(200);
+    expect(result.headers.get("Set-Cookie")).toContain("__Host-oh_session=;");
+    expect(result.headers.get("Set-Cookie")).toContain("Secure");
+    expect(result.headers.get("Set-Cookie")).toContain("Max-Age=0");
+    expect(
+      await env.DB.prepare("SELECT hash FROM sessions WHERE hash=?")
+        .bind(await hash(token))
+        .first(),
+    ).toBeNull();
+  });
   it("API tạo khách kiểm tra Turnstile rồi ghi link với hạn 3 tháng", async () => {
     const actualFetch = globalThis.fetch;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) =>

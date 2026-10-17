@@ -7,7 +7,7 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - Repository công khai: <https://github.com/oh-io-vn/oh.io.vn>.
 - Chủ sở hữu: tổ chức `oh-io-vn`.
 - Giấy phép mã nguồn: MIT.
-- Giai đoạn hiện tại: đã viết ứng dụng, migration, giao diện, kiểm thử và công cụ sao lưu. Chưa phát hành ứng dụng trên domain thật.
+- Giai đoạn hiện tại: mở thử tại <https://oh.io.vn> trên Cloudflare Free; mã nguồn, migration, giao diện, kiểm thử và công cụ sao lưu đã triển khai.
 
 ## Domain
 
@@ -21,7 +21,7 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - Nameserver trước đó: `ns1.zonedns.vn`, `ns2.zonedns.vn`, `ns3.zonedns.vn`, `ns4.zonedns.vn`.
 - Chủ dự án đã xác nhận chuyển DNS sang Cloudflare. Yêu cầu đổi nameserver đã được gửi tại Nhân Hòa; đã tải lại trang và kiểm chứng hai nameserver Cloudflare được lưu trong biểu mẫu, các ô nameserver thứ ba và thứ tư trống. Việc lưu tại nhà đăng ký chưa phải bằng chứng đã cập nhật xong tại registry/DNS công khai.
 - Đã kiểm chứng DNS công khai qua resolver `1.1.1.1` trả hai nameserver Cloudflare mới; giao diện Cloudflare xác nhận domain đã kích hoạt với thông báo `Your domain is now protected by Cloudflare`.
-- Chưa có Worker, website hoặc bản ghi trỏ web được triển khai.
+- Worker `oh-io-vn` và custom domain đã triển khai, TLS hợp lệ. Always Use HTTPS bật; HTTP được chuyển 301 sang HTTPS. Tắt Workers.dev và preview URL trong cấu hình.
 
 ## Email báo cáo lạm dụng
 
@@ -46,22 +46,25 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - SHA-256 ảnh: `6718c6a7430125f04c05550eac8ffc78df5cc150de41c00e7bc4d74f8331d28f`.
 - Ảnh đã được sao chép nguyên bản từ tệp chủ dự án cung cấp; không chỉnh sửa QR và không thực hiện giao dịch.
 
-## Công việc còn lại
+## Vận hành tiếp theo
 
-1. Chủ tài khoản hoàn tất xác minh email Cloudflare. Lệnh triển khai hiện bị Cloudflare từ chối với lỗi 10034; giao diện cũng từ chối tạo token giám sát cho đến khi xác minh.
-2. Tạo token giám sát chỉ đọc đã được chủ dự án cho phép, lưu secrets, triển khai Worker và custom domain.
-3. Chạy đăng nhập Google thật, chốt định danh quản trị, kiểm tra Turnstile thật và các luồng trên domain thật.
-4. Chạy workflow backup riêng tư, kiểm tra artifact mã hóa và restore tách biệt; lấy snapshot usage/CPU thực tế trước khi mở nhận tạo link.
-5. Theo dõi báo cáo tại hi@oh.io.vn khi mở công khai.
+1. Theo dõi lần backup theo lịch lúc 01:41 giờ Việt Nam và các lần cron 10 phút; workflow production chạy thủ công và restore bản có dữ liệu thật đã đạt.
+2. Theo dõi tài nguyên và phản hồi trong giai đoạn mở thử; chưa tăng các mức 3/20/100/200 khi chưa có số liệu.
+3. Tiếp nhận báo cáo tại hi@oh.io.vn, kiểm tra bằng chứng trước khi khóa link/tài khoản.
+4. Gia hạn domain trước ngày 17/10/2027; hạ tầng Free không gia hạn tên miền thay chủ dự án.
 
 ## Các tài nguyên đã tạo ngày 17/10/2026
 
 - Wrangler đã xác minh đúng tài khoản Cloudflare. OAuth credential được mã hóa và khóa lưu trong Windows Credential Manager; không nằm trong repository.
-- D1 `oh-io-vn`, vùng APAC, migration 0001 và 0002 đã áp dụng remote. Chưa có dữ liệu người dùng thật; chế độ tạo mới vẫn tắt.
-- Turnstile Managed `oh-io-vn`, hostname duy nhất `oh.io.vn`; public sitekey trong cấu hình, secret chỉ ở file local được Git bỏ qua, chờ upload Cloudflare Secrets sau khi xác minh email.
-- Google project riêng: tên `oh-io-vn`, ID `inspired-gift-511910-f7`. Web OAuth client `oh.io.vn Web`, callback duy nhất `https://oh.io.vn/auth/callback`, branding đã gắn trang chủ/privacy/terms. Giao diện Google xác nhận `In production`; chưa kiểm chứng đăng nhập đầu cuối khi website còn chưa deploy.
-- Kho `oh-io-vn/backups` đã tạo và kiểm tra `PRIVATE`; secrets mã hóa/endpoint đã đặt. Workflow không có bản sao dữ liệu thật cho đến khi endpoint production chạy được.
-- Kiểm thử local đã gồm giới hạn đồng thời, lịch tháng, redirect, quyền sở hữu, CSRF, cờ sự cố độc lập, mã hóa backup và khôi phục vào database khác. Luồng quản lý và xuất XLSX đã được thao tác trên Chrome với dữ liệu giả local; workbook tải về đã kiểm tra nội dung và không có ô công thức.
+- D1 `oh-io-vn`, vùng APAC, migration 0001 và 0002 đã áp dụng remote. Có dữ liệu production; đã bật tạo link, tạo khách và thống kê, tắt hoãn hết hạn sau khi heartbeat/backup/monitor khỏe. Hạn mức 3/20/100/200.
+- Turnstile Managed `oh-io-vn`, hostname duy nhất `oh.io.vn`; public sitekey trong cấu hình, secret đã upload Cloudflare Secrets. Luồng tạo link tài khoản đã qua xác minh thật; kiểm tra có thể cần tải lại khi Cloudflare chưa xác minh được trình duyệt.
+- Google project riêng: tên `oh-io-vn`, ID `inspired-gift-511910-f7`. Web OAuth client `oh.io.vn Web`, callback duy nhất `https://oh.io.vn/auth/callback`, branding đã gắn trang chủ/privacy/terms. Google xác nhận `In production`; đăng nhập đầu cuối thành công. Admin được chốt theo Google sub trong D1; secret bootstrap đã đặt rỗng sau lần chốt đầu.
+- Kho `oh-io-vn/backups` đã kiểm tra `PRIVATE`, `BACKUP_ENABLED=true`; secrets mã hóa/endpoint đã đặt. Workflow production `39029887755` thành công, bản có 1 tài khoản và 1 link đã phục hồi sang D1 local tách biệt, đúng target, không phiên và không lỗi khóa ngoại.
+- Token giám sát chỉ đọc Account Analytics:Read + D1:Read, giới hạn đúng tài khoản dự án, đã lưu Cloudflare Secrets. Cron thật 18:40 ngày 17/10/2026 ghi số liệu vào admin và mức giảm tải bình thường.
+- Rule Cloudflare `oh.io.vn API and login burst guard` đã bật: 20 yêu cầu/IP/10 giây với `/api/` hoặc `/auth/`, chặn 10 giây, không áp cho chuyển hướng link.
+- Bộ kiểm thử có 29 ca đạt, gồm giới hạn đồng thời, lịch tháng, redirect, quyền sở hữu, CSRF, cookie đăng xuất production, cờ sự cố độc lập và mã hóa backup. Build/typecheck đạt. Đã thao tác Google login, tạo/sửa link tài khoản, thống kê và xuất XLSX production trên Chrome; workbook tải về có hai sheet, đúng mã link/nhóm nguồn và không có ô công thức. Các lượt bấm thử là dữ liệu kiểm chứng, không phải người dùng thật.
+- Đăng xuất production đã kiểm chứng trả 200 sau khi sửa xóa cookie `__Host-` với thuộc tính Secure. Mẫu thống kê sau khi giảm truy vấn trùng: 5 ms CPU; callback Google có mẫu 14 ms nhưng outcome vẫn `ok`. Chưa thử tải lớn.
+- Luồng tạo khách đã qua kiểm thử Worker local với Turnstile giả lập; thử cuối trên trình duyệt tự động production gặp Turnstile 300030 nên chưa có bằng chứng tạo khách đầu cuối production. Giữ nguyên xác minh thật và không đưa đường bỏ qua vào ứng dụng; cần một lượt thử từ trình duyệt người dùng thông thường. Tạo khách vẫn được bật theo chính sách đã chốt.
 
 Chi tiết lệnh và giới hạn vận hành tại [OPERATIONS.md](OPERATIONS.md). Không bật gói trả phí.
 

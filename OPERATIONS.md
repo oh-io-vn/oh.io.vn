@@ -67,6 +67,8 @@ Không tự triển khai từ pull request không tin cậy. Workflow công khai
 
 Các hạn mức 3/20/100/200 nằm trong D1 policy, trigger kiểm tra ngay trong INSERT. Dữ liệu cửa sổ 24 giờ được dọn nhưng trigger vẫn lọc thời gian chính xác; không reset lúc nửa đêm. Burst 15 thao tác/60 giây là lớp hạn chế gần người dùng, không phải quota toàn cầu chính xác.
 
+Cloudflare zone có một rate limiting rule đang hoạt động: đường dẫn bắt đầu `/api/` hoặc `/auth/`, theo IP, 20 yêu cầu trong 10 giây thì chặn 10 giây. Đường chuyển hướng slug thông thường không nằm trong rule này. Always Use HTTPS đã bật và HTTP trả 301 sang HTTPS. Workers.dev và preview URL được tắt để giữ một hostname phục vụ đã cấu hình.
+
 Cron mỗi 10 phút lấy số liệu Workers và D1 cấp tài khoản qua GraphQL, cùng dung lượng database của dự án. Ngưỡng theo tài nguyên có tỷ lệ cao nhất: 70 cảnh báo trong admin, 80 tắt ghi thống kê và dừng khách, 90 dừng tạo toàn dịch vụ. Không tự bật lại công tắc mà quản trị đã tắt thủ công. Snapshot giám sát cũ quá 2 giờ hoặc backup thành công cũ quá 36 giờ sẽ dừng tạo, vẫn cho chuyển hướng khi còn khả năng phục vụ.
 
 Số liệu ngày theo UTC, có thể trễ/lấy mẫu. Không cam kết ngăn được mọi đợt tăng lưu lượng hoặc không chạm quota. Durable Object chỉ giữ một cờ nhỏ, được gọi khi kiểm tra sự cố/hết hạn; theo dõi thêm usage của nó tại dashboard. CPU và quota thật phải được kiểm chứng trên Cloudflare trước khi coi dịch vụ sẵn sàng.
@@ -81,7 +83,7 @@ Sau khi nguồn dữ liệu ổn định, quản trị tắt “Hoãn hết hạ
 
 ## Sao lưu ngoài Cloudflare
 
-Kho riêng tư: `oh-io-vn/backups`. Workflow mẫu trong `scripts/backup-workflow.yml`, chạy mỗi ngày 18:41 UTC (01:41 giờ Việt Nam), mã hóa AES-256-GCM trước khi upload, giữ artifact 7 ngày. Biến repository `BACKUP_ENABLED` đang là `false` trong lúc endpoint thật chưa được triển khai; đặt `true` sau deploy rồi chạy thủ công lúc mở thử. Snapshot D1 dùng một batch đọc chung giao dịch; gồm users, links/tombstones, blocklist và policy. Không gồm phiên, raw IP, logs hay thống kê có ưu tiên thấp hơn.
+Kho riêng tư: `oh-io-vn/backups`. Workflow mẫu trong `scripts/backup-workflow.yml`, chạy mỗi ngày 18:41 UTC (01:41 giờ Việt Nam), mã hóa AES-256-GCM trước khi upload, giữ artifact 7 ngày. Biến repository `BACKUP_ENABLED` đã đặt `true`; chạy thủ công trên production thành công ngày 17/10/2026. Snapshot D1 dùng một batch đọc chung giao dịch; gồm users, links/tombstones, blocklist và policy. Không gồm phiên, raw IP, logs hay thống kê có ưu tiên thấp hơn.
 
 Giới hạn pilot: tối đa 2.000 hàng mỗi bảng, 2 MiB JSON trước nén/mã hóa. Tối đa khoảng 14 MiB dữ liệu artifact ngày trong 7 ngày, cộng overhead và lượt chạy thủ công. Workflow tối đa 5 phút; Linux chạy hằng ngày dự kiến nằm trong ngân sách private Actions Free đã kiểm tra, nhưng phải theo dõi usage thật. Không bật chi tiêu vượt gói miễn phí. Bản lớn hơn giới hạn sẽ báo lỗi thay vì upload không giới hạn; đánh giá lại streaming/export và dung lượng trước khi tăng. Khi backup cũ 36 giờ, tạo link mới tự đóng cho đến khi sửa xong.
 
@@ -96,7 +98,7 @@ Khóa giải mã nằm trong secret của kho private và một bản local bị
 5. Kiểm tra count, target mẫu, khóa ngoại, tombstone và trigger giới hạn; kiểm tra đọc/302 trên cấu hình test. Phiên và thống kê không được phục hồi. Policy sau restore tự khóa tạo và hoãn hết hạn, cần giám sát và backup mới trước khi mở lại.
 6. Đối chiếu các yêu cầu xóa dữ liệu đã được xử lý sau thời điểm backup, áp dụng lại trước khi phục vụ công khai. Không dùng thao tác import ghi đè dữ liệu thật mà chưa kiểm tra.
 
-Đã chạy thử vòng snapshot → mã hóa → giải mã → SQL → D1 local tách biệt với dữ liệu giả; kiểm tra target và `PRAGMA foreign_key_check` đạt. Đây chưa phải bằng chứng backup tự động hoặc khôi phục từ dữ liệu production.
+Đã chạy vòng snapshot → mã hóa → tải artifact → giải mã có xác thực → SQL → D1 local tách biệt bằng bản sao lưu production ngày 17/10/2026. Kiểm tra có tài khoản và link thật, đúng target/thời hạn, không phục hồi session, `PRAGMA foreign_key_check` không lỗi và đủ ba trigger. Policy phục hồi khóa tạo mới và hoãn hết hạn đúng thiết kế. Workflow chạy thủ công thành công, lịch hằng ngày đã bật; cần theo dõi lần chạy theo lịch tiếp theo trong kho private.
 
 ## Xử lý báo cáo và xóa tài khoản
 

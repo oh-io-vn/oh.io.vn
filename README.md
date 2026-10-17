@@ -2,7 +2,7 @@
 
 Dự án công cụ rút gọn link miễn phí dành cho cộng đồng Việt Nam. Ưu tiên chuyển hướng trực tiếp, giao diện tối giản và vận hành gọn nhẹ bằng hạ tầng miễn phí.
 
-**Trạng thái:** đã có ứng dụng và bộ kiểm thử local. D1 và Turnstile đã tạo, Google Auth đã cấu hình. Chưa phát hành trên domain thật: Cloudflare còn yêu cầu xác minh email tài khoản trước khi cho phép triển khai Workers. Không coi việc build đạt là dịch vụ đã chạy production.
+**Trạng thái:** mở thử trên [oh.io.vn](https://oh.io.vn) từ ngày 17/10/2026, dùng Cloudflare Free. Đã kiểm chứng đăng nhập Google, tạo/sửa link tài khoản, chuyển hướng và thống kê trên domain thật; sao lưu mã hóa vào GitHub private và khôi phục dữ liệu production vào D1 local tách biệt đã đạt. Các giới hạn khởi đầu và cơ chế tự giảm tải được mô tả trong [OPERATIONS.md](OPERATIONS.md).
 
 ## Tài liệu
 

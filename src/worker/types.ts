@@ -55,5 +55,5 @@ export interface Link {
 }
 export type App = {
   Bindings: Env;
-  Variables: { user: User | null; admin: boolean };
+  Variables: { user: User | null; admin: boolean; policy: Policy };
 };

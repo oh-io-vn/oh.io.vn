@@ -63,6 +63,8 @@ app.use("/api/*", async (c, next) => {
   const user = await currentUser(c);
   c.set("user", user);
   const p = await policy(c.env);
+  if (!p) throw new Error("Missing service policy");
+  c.set("policy", p);
   c.set(
     "admin",
     !!user &&
@@ -88,7 +90,7 @@ app.use("/api/*", async (c, next) => {
   await next();
 });
 app.get("/api/config", async (c) => {
-  const p = (await policy(c.env))!,
+  const p = c.get("policy"),
     now = Date.now();
   return c.json({
     siteKey: c.env.TURNSTILE_SITE_KEY,
@@ -119,7 +121,12 @@ app.post("/api/logout", async (c) => {
     await c.env.DB.prepare("DELETE FROM sessions WHERE hash=?")
       .bind(await hash(token))
       .run();
-  deleteCookie(c, sessionName(c.env), { path: "/" });
+  deleteCookie(c, sessionName(c.env), {
+    path: "/",
+    secure: c.env.ENVIRONMENT === "production",
+    httpOnly: true,
+    sameSite: "Lax",
+  });
   return c.json({ ok: true });
 });
 app.post("/api/links", async (c) => {
@@ -241,7 +248,7 @@ app.get("/api/links", async (c) => {
       rows.results.length > 50
         ? `${rows.results[49].created_at}:${rows.results[49].slug}`
         : null,
-    expiryHeld: expiryHeld((await policy(c.env))!, Date.now()),
+    expiryHeld: expiryHeld(c.get("policy"), Date.now()),
   });
 });
 app.use("/api/links/:slug/*", async (c, next) => {
@@ -261,7 +268,7 @@ app.patch("/api/links/:slug/edit", async (c) => {
   )
     .bind(c.req.param("slug"), c.get("user")!.id)
     .first<Link>())!;
-  const p = (await policy(c.env))!,
+  const p = c.get("policy"),
     now = Date.now();
   if (
     l.status !== "active" ||
@@ -297,21 +304,19 @@ app.delete("/api/links/:slug/delete", async (c) => {
 });
 app.get("/api/links/:slug/stats", async (c) => {
   const since = vietnamDay(Date.now() - 29 * 86400000);
-  const data = await c.env.DB.prepare(
-    "SELECT day,source,device,clicks FROM analytics WHERE slug=? AND day>=? ORDER BY day DESC",
-  )
-    .bind(c.req.param("slug"), since)
-    .all();
-  const gaps = await c.env.DB.prepare(
-    "SELECT * FROM analytics_gaps WHERE ended_at IS NULL OR ended_at>=? ORDER BY started_at",
-  )
-    .bind(Date.now() - 30 * 86400000)
-    .all();
+  const [data, gaps] = await c.env.DB.batch([
+    c.env.DB.prepare(
+      "SELECT day,source,device,clicks FROM analytics WHERE slug=? AND day>=? ORDER BY day DESC",
+    ).bind(c.req.param("slug"), since),
+    c.env.DB.prepare(
+      "SELECT * FROM analytics_gaps WHERE ended_at IS NULL OR ended_at>=? ORDER BY started_at",
+    ).bind(Date.now() - 30 * 86400000),
+  ]);
   return c.json({
     rows: data.results,
     gaps: gaps.results,
     since,
-    enabled: !!(await policy(c.env))!.analytics_enabled,
+    enabled: !!c.get("policy").analytics_enabled,
   });
 });
 app.use("/api/admin/*", async (c, next) => {
@@ -321,7 +326,7 @@ app.use("/api/admin/*", async (c, next) => {
 });
 app.get("/api/admin/overview", async (c) => {
   const [p, counts, audit] = await Promise.all([
-    policy(c.env),
+    Promise.resolve(c.get("policy")),
     c.env.DB.prepare(
       "SELECT status,count(*) AS count FROM links GROUP BY status",
     ).all(),
@@ -402,7 +407,7 @@ app.post("/api/admin/action", async (c) => {
       .bind(kind, value)
       .run();
   } else if (action === "policy") {
-    const old = (await policy(c.env))!;
+    const old = c.get("policy");
     const fields = [
       "create_enabled",
       "guest_enabled",
