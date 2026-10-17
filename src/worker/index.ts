@@ -206,7 +206,8 @@ app.post("/api/links", async (c) => {
             "Dịch vụ đã đạt giới hạn tạo link trong 24 giờ. Hãy quay lại sau.",
           actor:
             "Bạn đã đạt giới hạn tạo link trong 24 giờ. Mỗi lượt tạo sẽ được tính lại sau 24 giờ.",
-          active: "Bạn đã đạt giới hạn link đang hoạt động. Xóa link không còn dùng rồi thử lại.",
+          active:
+            "Bạn đã đạt giới hạn link đang hoạt động. Xóa link không còn dùng rồi thử lại.",
           blocked: "Tài khoản đã bị khóa.",
         };
         c.header("Retry-After", "3600");
@@ -263,39 +264,78 @@ app.use("/api/links/:slug/*", async (c, next) => {
   await next();
 });
 app.patch("/api/links/:slug/edit", async (c) => {
-  const l = (await c.env.DB.prepare(
+  const l = await c.env.DB.prepare(
     "SELECT * FROM links WHERE slug=? AND owner_id=?",
   )
     .bind(c.req.param("slug"), c.get("user")!.id)
-    .first<Link>())!;
-  const p = c.get("policy"),
-    now = Date.now();
+    .first<Link>();
+  if (!l) return c.json({ error: "Không tìm thấy link." }, 404);
+  const now = Date.now();
+  const held = expiryHeld(c.get("policy"), now);
   if (
     l.status !== "active" ||
     (l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
-    (!expiryHeld(p, now) && l.idle_expires_at <= now)
+    (!held && l.idle_expires_at <= now)
   )
     return c.json({ error: "Link đã ngừng hoạt động nên không thể sửa." }, 409);
   const b = await readBody(c);
+  let target: URL, slug: string, fixed: number | null;
   try {
-    const target = targetValue(b.target, c.env.APP_ORIGIN);
+    target = targetValue(b.target, c.env.APP_ORIGIN);
+    slug = b.slug === undefined ? l.slug : slugValue(b.slug);
+    fixed = fixedExpiry(b.fixed_expires_at, now);
     if (await blocked(c.env, target)) throw new Error("Địa chỉ đã bị chặn.");
-    const fixed = fixedExpiry(b.fixed_expires_at, now);
-    await c.env.DB.prepare(
-      "UPDATE links SET target=?,host=?,label=?,fixed_expires_at=? WHERE slug=? AND owner_id=? AND status='active'",
+  } catch (e) {
+    return c.json({ error: (e as Error).message }, 400);
+  }
+  // Fail closed if a Worker is deployed before migration 0003. Never release
+  // an old code without the reservation trigger and cascading analytics FK.
+  if (
+    slug !== l.slug &&
+    !(await c.env.DB.prepare(
+      "SELECT 1 FROM sqlite_schema WHERE type='trigger' AND name='reserve_renamed_slug'",
+    ).first())
+  )
+    return c.json(
+      { error: "Chức năng đổi mã đang được cập nhật. Hãy thử lại sau." },
+      503,
+    );
+  try {
+    // The single update, FK cascade and tombstone trigger are atomic. Recheck
+    // ownership/status/expiry here in case the record changed after the read.
+    const result = await c.env.DB.prepare(
+      "UPDATE links SET slug=?,target=?,host=?,label=?,fixed_expires_at=? WHERE slug=? AND owner_id=? AND status='active' AND (fixed_expires_at IS NULL OR fixed_expires_at>?) AND (?=1 OR idle_expires_at>?)",
     )
       .bind(
+        slug,
         target.toString(),
         target.hostname,
         typeof b.label === "string" ? b.label.trim().slice(0, 120) : null,
         fixed,
         l.slug,
         c.get("user")!.id,
+        now,
+        Number(held),
+        now,
       )
       .run();
-    return c.json({ ok: true });
+    if (!result.meta.changes)
+      return c.json(
+        {
+          error:
+            "Link đã thay đổi hoặc ngừng hoạt động. Hãy tải lại danh sách.",
+        },
+        409,
+      );
+    return c.json({ ok: true, slug, url: c.env.APP_ORIGIN + "/" + slug });
   } catch (e) {
-    return c.json({ error: (e as Error).message }, 400);
+    const detail = String((e as Error).cause ?? e);
+    if (detail.includes("UNIQUE"))
+      return c.json(
+        { error: "Mã này đã được sử dụng. Hãy chọn mã khác." },
+        409,
+      );
+    throw e;
   }
 });
 app.delete("/api/links/:slug/delete", async (c) => {
@@ -570,13 +610,13 @@ app.all("/:slug", async (c) => {
     if (l.owner_id && p.analytics_enabled && p.automatic_level < 80)
       c.executionCtx.waitUntil(
         c.env.DB.prepare(
-          "INSERT INTO analytics(slug,day,source,device) VALUES(?,?,?,?) ON CONFLICT(slug,day,source,device) DO UPDATE SET clicks=clicks+1",
+          "INSERT INTO analytics(slug,day,source,device) SELECT slug,?,?,? FROM links WHERE slug=? AND status='active' ON CONFLICT(slug,day,source,device) DO UPDATE SET clicks=clicks+1",
         )
           .bind(
-            slug,
             vietnamDay(now),
             sourceGroup(c.req.header("Referer") ?? null),
             deviceGroup(ua),
+            slug,
           )
           .run()
           .catch(async () => {

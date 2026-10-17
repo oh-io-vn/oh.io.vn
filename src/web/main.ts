@@ -1,5 +1,6 @@
 import "./styles.css";
 import { icon } from "./icons.js";
+import { skeleton } from "./loading.js";
 import { VerificationGate } from "./verification";
 import { requestJson } from "./request";
 import { canEditLink } from "./link-state";
@@ -151,7 +152,7 @@ async function copy(
 }
 function configureDialogs() {
   const busy = (dialog: HTMLDialogElement) =>
-    !!dialog.querySelector('[aria-busy="true"]');
+    !!dialog.querySelector('form[aria-busy="true"], button[aria-busy="true"]');
   document.querySelectorAll<HTMLDialogElement>("dialog").forEach((dialog) => {
     dialog.addEventListener("cancel", (event) => {
       if (busy(dialog)) event.preventDefault();
@@ -185,10 +186,12 @@ function configureDialogs() {
 }
 async function account() {
   me = await api<Me>("/api/me");
+  $("#account .loading-placeholder")?.remove();
+  $("#login-link").hidden = false;
   if (me.user) {
     $("#nav-dashboard").hidden = false;
     $("#account").innerHTML =
-      `${me.admin ? `<a href="/admin/" class="quiet"${location.pathname === "/admin/" ? ' aria-current="page"' : ""}>${icon("admin")}<span>Quản trị</span></a>` : ""}<button class="quiet" id="logout">${icon("logout")}<span>Đăng xuất</span></button>`;
+      `${me.admin ? `<a href="/admin/" class="quiet"${location.pathname === "/admin/" ? ' aria-current="page"' : ""}>${icon("admin")}<span>Quản trị</span></a>` : ""}<button class="quiet danger" id="logout">${icon("logout")}<span>Đăng xuất</span></button>`;
     $("#logout").addEventListener("click", async () => {
       const button = $<HTMLButtonElement>("#logout");
       button.disabled = true;
@@ -334,6 +337,8 @@ async function home() {
     $("#guest-hint").hidden = true;
   }
   const config = await api("/api/config");
+  $("#home-loading")?.remove();
+  $("#guest-hint").hidden = !!me.user;
   setControlLabel(submit, "Rút gọn link", "link");
   async function initializeWidget() {
     if (widget !== undefined) return;
@@ -513,7 +518,7 @@ let detailRequest = 0;
 let listRequest = 0;
 let expiryHold = false;
 const expiryHoldNotice =
-  "Tạm dừng tính hạn không hoạt động trong lúc kiểm tra số liệu truy cập. Ngày hết hạn cố định vẫn giữ nguyên.";
+  "Link tạm thời không hết hạn vì lâu không có lượt mở. Ngày hết hạn do bạn tự đặt vẫn áp dụng.";
 function card(l: LinkData) {
   const active = canEditLink(l, expiryHold);
   return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">${icon("copy")}<span>Sao chép</span></button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">${icon("delete")}<span>Xóa</span></button></div></article>`;
@@ -525,6 +530,7 @@ async function loadLinks(append = false) {
   more.disabled = true;
   more.textContent = append ? "Đang tải…" : "Xem thêm";
   $("#link-list").setAttribute("aria-busy", "true");
+  if (!append) $("#link-list").innerHTML = skeleton("links");
   message("#list-status", append ? "Đang tải thêm link…" : "Đang tìm link…");
   try {
     const q = $<HTMLInputElement>("#search").value;
@@ -562,6 +568,8 @@ async function loadLinks(append = false) {
           ? "Chưa tải được kết quả mới. Danh sách bên dưới vẫn là kết quả trước đó."
           : "",
       );
+      if (!append && links.length)
+        $("#link-list").innerHTML = links.map(card).join("");
       if (!append && !links.length) {
         $("#link-list").innerHTML =
           `<div class="empty" role="status">${icon("error")}<h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại danh sách.</p><button id="retry-links" class="secondary" type="button">${icon("retry")}<span>Tải lại danh sách</span></button></div>`;
@@ -580,6 +588,7 @@ async function loadLinks(append = false) {
 async function dashboard() {
   if (!$("#link-list")) return;
   if (!me.user) {
+    $("#link-list").removeAttribute("aria-busy");
     $("#link-list").innerHTML =
       `<div class="empty"><h2>Đăng nhập để quản lý link</h2><p>Bạn có thể sửa link đã tạo bằng tài khoản và xem thống kê.</p><a class="primary" href="/auth/login">${icon("login")}<span>Đăng nhập Google</span></a></div>`;
     $("#link-search").hidden = true;
@@ -626,6 +635,9 @@ async function dashboard() {
       (form.elements.namedItem("fixed_expires_at") as HTMLInputElement).value =
         localDate(selected.fixed_expires_at);
       $("#edit-slug").textContent = `oh.io.vn/${selected.slug}`;
+      $<HTMLInputElement>("#edit-code").value = selected.slug;
+      $<HTMLInputElement>('#edit-form [name="confirm_rename"]').checked = false;
+      updateRenameWarning();
       message("#edit-message", "");
       $<HTMLDialogElement>("#edit-dialog").showModal();
     }
@@ -637,31 +649,55 @@ async function dashboard() {
       $<HTMLDialogElement>("#delete-dialog").showModal();
     }
     if (b.dataset.action === "stats") {
-      b.disabled = true;
-      setControlLabel(b, "Đang tải…", "loading");
+      const dialog = $<HTMLDialogElement>("#stats-dialog");
+      selected = link;
+      stats = null;
+      $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
+      $("#stats-content").innerHTML = skeleton("stats");
+      $("#stats-content").setAttribute("aria-busy", "true");
+      $<HTMLButtonElement>("#export-excel").disabled = true;
+      message("#stats-message", "");
+      dialog.showModal();
+      $("#stats-dialog .dialog-body").scrollTop = 0;
       try {
         const data = await api<Stats>(`/api/links/${link.slug}/stats`);
-        if (request !== detailRequest) return;
-        selected = link;
+        if (request !== detailRequest || !dialog.open) return;
         stats = data;
-        $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
         renderStats(stats);
-        message("#stats-message", "");
-        // A disabled opener loses focus while loading. Restore it before the
-        // native dialog captures where focus should return on close.
-        b.disabled = false;
-        b.focus({ preventScroll: true });
-        $<HTMLDialogElement>("#stats-dialog").showModal();
-        $("#stats-dialog .dialog-body").scrollTop = 0;
+        $<HTMLButtonElement>("#export-excel").disabled = false;
       } catch (e) {
-        if (request === detailRequest)
-          message("#dashboard-notice", (e as Error).message, true);
+        if (request === detailRequest && dialog.open) {
+          $("#stats-content").replaceChildren();
+          message(
+            "#stats-message",
+            `${(e as Error).message} Đóng hộp này rồi mở thống kê để thử lại.`,
+            true,
+          );
+        }
       } finally {
-        b.disabled = false;
-        setControlLabel(b, "Thống kê", "stats");
+        if (request === detailRequest)
+          $("#stats-content").removeAttribute("aria-busy");
       }
     }
   });
+  const updateRenameWarning = () => {
+    const changed =
+      $<HTMLInputElement>("#edit-code").value.toLowerCase() !== selected?.slug;
+    $("#rename-warning").hidden = !changed;
+    const confirmation = $<HTMLInputElement>(
+      '#edit-form [name="confirm_rename"]',
+    );
+    confirmation.required = changed;
+    confirmation.checked = false;
+    const save = $('#edit-form button[type="submit"]');
+    save.classList.toggle("danger-button", changed);
+    setControlLabel(save, changed ? "Đổi mã và lưu" : "Lưu thay đổi", "save");
+    message("#edit-message", "");
+  };
+  $("#edit-code").addEventListener("input", updateRenameWarning);
+  $('#edit-form [name="confirm_rename"]').addEventListener("change", () =>
+    message("#edit-message", ""),
+  );
   $("#edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
@@ -671,6 +707,20 @@ async function dashboard() {
     )!;
     const f = new FormData(form);
     const editedSlug = selected!.slug;
+    const newSlug = String(f.get("slug") ?? editedSlug).toLowerCase();
+    if (newSlug !== editedSlug && !f.get("confirm_rename")) {
+      message(
+        "#edit-message",
+        "Xác nhận rằng địa chỉ cũ sẽ ngừng hoạt động trước khi lưu.",
+        true,
+      );
+      $('#edit-form [name="confirm_rename"]').focus();
+      return;
+    }
+    if (!form.checkValidity()) {
+      form.reportValidity();
+      return;
+    }
     const fixed = String(f.get("fixed_expires_at") ?? "");
     button.disabled = true;
     setControlLabel(button, "Đang lưu…", "loading");
@@ -681,6 +731,7 @@ async function dashboard() {
         method: "PATCH",
         body: JSON.stringify({
           target: f.get("target"),
+          slug: newSlug,
           label: f.get("label"),
           fixed_expires_at: fixed ? new Date(fixed).toISOString() : null,
         }),
@@ -689,19 +740,24 @@ async function dashboard() {
       const reloaded = await loadLinks();
       message(
         "#dashboard-notice",
-        `Đã lưu thay đổi cho oh.io.vn/${editedSlug}.${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
+        `Đã lưu thay đổi cho oh.io.vn/${newSlug}.${newSlug !== editedSlug ? " Địa chỉ cũ đã ngừng hoạt động." : ""}${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
         !reloaded,
       );
-      document
-        .querySelector<HTMLButtonElement>(
-          `[data-action="edit"][data-slug="${CSS.escape(editedSlug)}"]`,
-        )
-        ?.focus();
+      const nextFocus =
+        document.querySelector<HTMLButtonElement>(
+          `[data-action="edit"][data-slug="${CSS.escape(newSlug)}"]`,
+        ) ??
+        ($("#link-search").hidden ? $(".page-head .primary") : $("#search"));
+      nextFocus?.focus();
     } catch (e) {
       message("#edit-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
-      setControlLabel(button, "Lưu thay đổi", "save");
+      setControlLabel(
+        button,
+        $("#rename-warning").hidden ? "Lưu thay đổi" : "Đổi mã và lưu",
+        "save",
+      );
       form.removeAttribute("aria-busy");
     }
   });
@@ -862,7 +918,7 @@ async function admin() {
       /* Missing or incomplete snapshots are shown explicitly. */
     }
     $("#usage").innerHTML =
-      `<p class="small">Tác vụ định kỳ chạy gần nhất: ${data.policy.heartbeat ? date(data.policy.heartbeat) : "chưa có"}<br>Sao lưu đã tải lên: ${data.policy.last_backup_at ? date(data.policy.last_backup_at) : "chưa có"}</p>${usage}${data.links.map((r: any) => `<div class="stat-row"><span>${esc(linkStatus(r.status))}</span><strong>${r.count}</strong></div>`).join("")}`;
+      `<p class="small">Tác vụ định kỳ chạy gần nhất: ${data.policy.heartbeat ? date(data.policy.heartbeat) : "chưa có"}<br>Sao lưu đã tải lên: ${data.policy.last_backup_at ? date(data.policy.last_backup_at) : "chưa có"}</p>${usage}${data.links.map((r: any) => `<div class="stat-row"><span>Link ${esc(linkStatus(r.status).toLowerCase())}</span><strong>${r.count}</strong></div>`).join("")}<p class="small">Số link theo trạng thái lưu trong hệ thống, gồm cả link khách. Không phải số người đang online. Link quá hạn có thể chờ tác vụ định kỳ cập nhật trạng thái.</p>`;
     $("#audit").innerHTML =
       data.audit
         .map(
@@ -875,7 +931,7 @@ async function admin() {
       blocked
         .map(
           (b: any) =>
-            `<div class="stat-row"><span>${esc(blockKind(b.kind))} - ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">${icon("unlock")}<span>Gỡ</span></button></div>`,
+            `<div class="stat-row"><span>${esc(blockKind(b.kind))} - ${esc(b.value)}</span><button class="quiet danger" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">${icon("unlock")}<span>Gỡ</span></button></div>`,
         )
         .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
@@ -1055,6 +1111,8 @@ async function admin() {
     button.disabled = true;
     setControlLabel(button, "Đang tìm…", "loading");
     $("#admin-results").setAttribute("aria-busy", "true");
+    const previousResults = $("#admin-results").innerHTML;
+    $("#admin-results").innerHTML = skeleton("links");
     message("#admin-search-message", "Đang tra cứu…");
     message("#admin-results-message", "");
     try {
@@ -1065,13 +1123,13 @@ async function admin() {
         r.users
           .map(
             (u: any) =>
-              `<div class="panel"><p>${esc(u.email)} - ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">${icon("lock")}<span>Khóa tất cả link của tài khoản</span></button></div>`,
+              `<div class="panel"><p>${esc(u.email)} - ${esc(u.name)}</p><button class="secondary danger" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">${icon("lock")}<span>Khóa tất cả link của tài khoản</span></button></div>`,
           )
           .join("") +
           r.links
             .map(
               (l: any) =>
-                `<div class="link-card"><div><strong>${esc(l.slug)} - ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">${icon("block")}<span>Vô hiệu hóa link</span></button></div>`,
+                `<div class="link-card"><div><strong>${esc(l.slug)} - ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary danger" data-admin-action="block_link" data-subject="${esc(l.slug)}">${icon("block")}<span>Vô hiệu hóa link</span></button></div>`,
             )
             .join("") ||
         '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';
@@ -1088,6 +1146,8 @@ async function admin() {
     } finally {
       button.disabled = false;
       setControlLabel(button, "Tra cứu", "search");
+      if ($("#admin-results .loading-placeholder"))
+        $("#admin-results").innerHTML = previousResults;
       $("#admin-results").removeAttribute("aria-busy");
     }
   });
@@ -1159,6 +1219,13 @@ try {
     setControlLabel(submit, "Rút gọn link", "link");
   }
   const list = document.querySelector<HTMLElement>("#link-list");
-  if (list && list.textContent?.includes("Đang tải link"))
+  if (list && list.querySelector(".loading-placeholder"))
     list.innerHTML = `<div class="empty" role="status">${icon("error")}<h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại trang.</p></div>`;
+} finally {
+  $("#home-loading")?.remove();
+  $("#admin-loading")?.remove();
+  $("#account .loading-placeholder")?.remove();
+  const login = $("#login-link");
+  if (login) login.hidden = false;
+  $("#link-list")?.removeAttribute("aria-busy");
 }

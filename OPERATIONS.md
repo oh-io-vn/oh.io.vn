@@ -74,6 +74,24 @@ Custom domain được khai báo trong `wrangler.jsonc`. Giữ nguyên MX/TXT Em
 
 ### Tự động deploy từ GitHub Actions
 
+#### Phát hành tính năng đổi mã link
+
+Áp dụng `migrations/0003_rename_link_codes.sql` bằng `npm run db:remote` trước
+khi phát hành Worker có tính năng đổi mã. Migration giữ nguyên dữ liệu thống kê,
+thêm cập nhật khóa ngoại theo mã mới và giữ mã cũ dưới dạng tombstone trong cùng
+giao dịch. Đổi mã không tạo sự kiện hạn mức mới. Không cần đổi định dạng backup:
+mã cũ vẫn ở bảng `links` và không còn thông tin chủ sở hữu/địa chỉ đích.
+
+Workflow deploy hiện chỉ có quyền trên Worker và không tự chạy migration D1.
+Không tự tăng quyền token deploy. Khi chưa áp migration, API từ chối riêng thao
+tác đổi mã với 503 để tránh cấp lại mã cũ. Sửa thông tin với mã không đổi vẫn
+hoạt động. Migration tương thích Worker cũ, vì thế có thể áp trước khi push.
+Kiểm tra backup hiện tại và chạy migration với quyền D1 khi phát hành được cho phép.
+
+Chủ link phải xác nhận địa chỉ cũ ngừng hoạt động. Link mới giữ chủ sở hữu,
+thống kê, ngày tạo và thời hạn. Không cho đổi sang mã đã từng dùng, mã hệ thống,
+link của người khác hoặc link đã ngừng hoạt động.
+
 Workflow `.github/workflows/ci.yml` chạy kiểm tra cho push và pull request.
 Khi push vào `main`, job `deploy` chỉ chạy sau khi job `verify` đạt typecheck,
 test và build. Pull request, nhánh khác hoặc CI thất bại không được deploy.

@@ -31,7 +31,9 @@ and [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob
 - Spacing: 4, 8, 12, 16, 24, 32, 48, 64 and 80px.
 - Radius: 6px badges, 8px controls, 12px functional surfaces, 16px dialogs.
 - Layout: 1120px shell, 720px home workspace, 704px reading column.
-- Motion: 150ms color/background/border transitions, disabled for reduced motion.
+- Motion: 150ms color/background/border transitions and a subtle 180ms content
+  appearance (opacity 0.92 to 1), disabled for reduced motion. Dialog surfaces
+  remain opaque; animate their inner content only.
 
 ## Components and behavior
 
@@ -60,8 +62,8 @@ palette, icon and list structure are deliberate choices, not defects to remove.
 - Shared header, active navigation, keyboard skip link and shared footer.
 - Keep the About link in the footer, outside the header's primary actions.
 - Use SVG icons for dropdown arrows, selection marks and disclosure controls.
-  Admin panels fit their content. Keep the Cloudflare action next to usage data
-  with normal spacing instead of stretching it to the bottom of a taller panel.
+  Admin panels in the same row stretch to equal height. Keep the Cloudflare
+  action next to usage data with normal spacing; remaining space stays below it.
 - One prominent action per task; secondary buttons are neutral and outlined.
 - Controls have visible labels, focus rings and at least 44px touch targets.
 - Link records form a divided list, with aligned actions on desktop and wrapping
@@ -112,8 +114,26 @@ actions use two columns to keep labels and touch targets intact.
 
 Pending actions show LoaderCircle, successful copy shows Check, creation success
 shows CircleCheck, and errors show CircleAlert. Restore the original icon and
-accessible name afterward. Only the pending indicator animates; reduced motion
-disables that animation. Native dialogs retain keyboard behavior and focus return.
+accessible name afterward. Native dialogs retain keyboard behavior and focus return.
+
+## Loading, risk and form alignment
+
+Use `src/web/loading.js` for API-dependent placeholders in the shared account
+header, home connection hint, dashboard list, admin and statistics. Skeletons
+have a status label, hide decorative bars from assistive technology, and contain
+no focusable controls. Do not insert fake delays or block static information pages.
+Pulse opacity gently over two 1.8s cycles, then stay still; disable it under reduced motion. End the
+placeholder on success, denial and failure. Pending stats can be dismissed and a
+late response must not reopen the dialog. Disable export until stats are ready.
+
+Use danger red for logout, delete, locking, disabling and adding/removing blocks.
+Keep text labels and confirmations. An edited link code requires acknowledgment
+that the previous URL stops working; analytics and expiry remain with the new code.
+
+Slug prefixes use the same font size/line height as their input, without inherited
+field margins. Leave 12px below dividers before help text and 16px between search
+feedback and results. Use pretty wrapping for prose and short help text; split a
+standalone reference into its own paragraph instead of leaving an orphan word.
 
 Review at 1440/768/390px, 320px and 200% text. Inspect rendered weight, spacing,
 alignment, clipping, empty/error states and all changed controls before shipping.

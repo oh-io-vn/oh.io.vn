@@ -28,6 +28,9 @@ try {
   let member = false,
     empty = false,
     networkError = false;
+  let configDelay = 0,
+    accountDelay = 0,
+    statsDelay = 0;
   let listDelay = 0,
     listFailure = false,
     actionDelay = 0,
@@ -117,7 +120,9 @@ try {
         contentType: "application/json",
         body: JSON.stringify({ error: "Dịch vụ đang bận. Vui lòng thử lại." }),
       });
-    if (path === "/api/me")
+    if (path === "/api/me") {
+      if (accountDelay)
+        await new Promise((resolve) => setTimeout(resolve, accountDelay));
       return json({
         user: member
           ? {
@@ -129,12 +134,16 @@ try {
         admin: member,
         csrf: "synthetic-ui-csrf",
       });
-    if (path === "/api/config")
+    }
+    if (path === "/api/config") {
+      if (configDelay)
+        await new Promise((resolve) => setTimeout(resolve, configDelay));
       return json({
         createEnabled: true,
         guestEnabled: true,
         siteKey: "local-ui-fixture",
       });
+    }
     if (path === "/api/links" && request.method() === "POST") {
       lastCreate = request.postDataJSON();
       return json({
@@ -173,13 +182,16 @@ try {
       links = links.filter((l) => l.slug !== path.split("/")[3]);
       return json({ ok: true });
     }
-    if (path.endsWith("/stats"))
+    if (path.endsWith("/stats")) {
+      if (statsDelay)
+        await new Promise((resolve) => setTimeout(resolve, statsDelay));
       return json({
         since: "2026-09-18",
         enabled: statsEnabled,
         gaps: statsGaps,
         rows: statsRows,
       });
+    }
     if (path === "/api/admin/overview") {
       if (overviewDelay)
         await new Promise((resolve) => setTimeout(resolve, overviewDelay));
@@ -278,6 +290,11 @@ try {
         .flatMap((icon) => {
           const failures = [];
           const box = icon.getBoundingClientRect();
+          // Rotation expands the axis-aligned bounding box of a spinner. Use
+          // its rendered CSS size for scale, and bounds only for containment.
+          const style = getComputedStyle(icon);
+          const width = parseFloat(style.width);
+          const height = parseFloat(style.height);
           const name = icon.getAttribute("data-icon");
           if (
             icon.getAttribute("aria-hidden") !== "true" ||
@@ -292,10 +309,7 @@ try {
               failures.push(`${name}: missing visible label`);
             if (bounds.width < 44 || bounds.height < 44)
               failures.push(`${name}: target smaller than 44px`);
-            if (
-              box.width > fontSize * 1.5 ||
-              Math.abs(box.width - box.height) > 1
-            )
+            if (width > fontSize * 1.5 || Math.abs(width - height) > 1)
               failures.push(`${name}: icon oversized or distorted`);
             if (
               box.left < bounds.left ||
@@ -330,7 +344,240 @@ try {
     );
     return { name, ...m };
   };
+  async function checkFilteredRename() {
+    member = true;
+    empty = false;
+    networkError = false;
+    listFailure = false;
+    links = structuredClone([rows[0]]);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await goto("/dashboard/");
+    await page.locator("#search").fill("tai-lieu");
+    await page.locator("#search-button").click();
+    await page.waitForFunction(
+      () => document.querySelectorAll(".link-card").length === 1,
+    );
+    await page.locator('[data-action="edit"]').click();
+    await page.locator("#edit-code").fill("filtered-code");
+    await page.locator('[name="confirm_rename"]').check();
+    await page.locator('#edit-form button[type="submit"]').click();
+    await page.waitForSelector("#edit-dialog:not([open])", { state: "hidden" });
+    await page
+      .getByRole("heading", { name: "Không tìm thấy link", exact: true })
+      .waitFor();
+    assert.equal(await page.locator(":focus").getAttribute("id"), "search");
+    assert.match(
+      await page.locator("#dashboard-notice").textContent(),
+      /filtered-code/,
+    );
+    await page.locator("#clear-search").click();
+    await page
+      .locator('[data-action="edit"][data-slug="filtered-code"]')
+      .waitFor();
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/rename-filter-recovery.png`,
+      fullPage: true,
+    });
+  }
   const measurements = [];
+  // A slow configuration response keeps a single pending hint, then restores
+  // guest guidance. Reduced motion stops every placeholder animation.
+  configDelay = 1500;
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(origin + "/");
+  await page.locator("#home-loading").waitFor();
+  assert.equal(await page.locator("#guest-hint").isVisible(), false);
+  assert.equal(
+    await page.locator('#shorten-form button[type="submit"]').isEnabled(),
+    false,
+  );
+  assert.equal(
+    await page
+      .locator(".skeleton")
+      .first()
+      .evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+  );
+  await page.waitForSelector('#shorten-form button[type="submit"]:enabled');
+  assert.equal(await page.locator("#home-loading").count(), 0);
+  assert.equal(await page.locator("#guest-hint").isVisible(), true);
+  configDelay = 0;
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  // Before auth/data resolves: every route remains usable and no SVG expands.
+  member = true;
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const path of [
+      "/",
+      "/dashboard/",
+      "/admin/",
+      "/about/",
+      "/privacy/",
+      "/terms/",
+      "/report/",
+    ]) {
+      accountDelay = 1500;
+      await page.goto(origin + path);
+      await page.evaluate(() => document.fonts.ready);
+      await page.locator("#account .loading-placeholder").waitFor();
+      assert.equal(await page.locator("#login-link").isVisible(), false);
+      assert.equal(
+        await page
+          .locator(
+            ".loading-placeholder input, .loading-placeholder button, .loading-placeholder a",
+          )
+          .count(),
+        0,
+      );
+      const oversized = await page
+        .locator("svg:visible")
+        .evaluateAll(
+          (nodes) =>
+            nodes.filter((el) => el.getBoundingClientRect().width > 32).length,
+        );
+      assert.equal(oversized, 0, "Initial SVGs must have bounded sizes");
+      measurements.push(await measure(`loading-${path}-${width}`));
+      await page.screenshot({
+        animations: "disabled",
+        path: `${out}/loading-${path.split("/")[1] || "home"}-${width}.png`,
+        fullPage: true,
+      });
+      await page.locator("#logout").waitFor();
+      await page.waitForFunction(
+        () => !document.querySelector(".loading-placeholder"),
+      );
+    }
+  }
+  accountDelay = 0;
+  for (const width of [1440, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await goto("/");
+    await page.locator("#custom-options summary").click();
+    const alignment = await page.locator(".slug-input").evaluate((el) => {
+      const prefix = el.querySelector("span").getBoundingClientRect(),
+        input = el.querySelector("input").getBoundingClientRect();
+      return Math.abs(
+        (prefix.top + prefix.bottom) / 2 - (input.top + input.bottom) / 2,
+      );
+    });
+    assert(alignment <= 1, "Slug prefix and value must share the same center");
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/slug-aligned-${width}.png`,
+      fullPage: true,
+    });
+    await goto("/dashboard/");
+    await page.locator('[data-action="edit"]').first().click();
+    await page.locator("#edit-code").fill("renamed-code");
+    assert(await page.locator("#rename-warning").isVisible());
+    await page.locator('#edit-form button[type="submit"]').click();
+    assert(
+      await page.locator("#edit-dialog").isVisible(),
+      "Rename cannot submit without acknowledging the broken old address",
+    );
+    await page.locator('[name="confirm_rename"]').check();
+    measurements.push(await measure(`rename-${width}`));
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/rename-${width}.png`,
+    });
+    await page.locator('#edit-form button[type="submit"]').click();
+    await page.waitForSelector("#edit-dialog:not([open])", { state: "hidden" });
+    await page
+      .locator('[data-action="edit"][data-slug="renamed-code"]')
+      .waitFor();
+    assert.equal(
+      await page.locator(":focus").getAttribute("data-slug"),
+      "renamed-code",
+    );
+    assert.match(
+      await page.locator("#dashboard-notice").textContent(),
+      /Địa chỉ cũ đã ngừng hoạt động/,
+    );
+    links = structuredClone(rows);
+    await goto("/dashboard/");
+    statsDelay = 1500;
+    await page.locator('[data-action="stats"]').first().click();
+    await page.locator("#stats-content .loading-placeholder").waitFor();
+    assert.equal(await page.locator("#export-excel").isEnabled(), false);
+    measurements.push(await measure(`stats-loading-${width}`));
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/stats-loading-${width}.png`,
+    });
+    await page.keyboard.press("Escape");
+    assert.equal(
+      await page.locator("#stats-dialog").isVisible(),
+      false,
+      "Loading must not trap the user in a dialog",
+    );
+    await page.waitForFunction(
+      () => !document.querySelector("#stats-content").hasAttribute("aria-busy"),
+    );
+    assert.equal(
+      await page.locator("#stats-dialog").isVisible(),
+      false,
+      "A late response must not reopen the dialog",
+    );
+    statsDelay = 0;
+    await goto("/admin/");
+    if (width > 900) {
+      const bottoms = await page
+        .locator("#admin-content > .admin-grid > .panel")
+        .evaluateAll((nodes) =>
+          nodes.map((n) => n.getBoundingClientRect().bottom),
+        );
+      assert(
+        Math.abs(bottoms[0] - bottoms[1]) <= 1,
+        "Admin panels align at their bottom edges",
+      );
+    }
+    const space = await page
+      .locator("#expiry-hold-help")
+      .evaluate(
+        (el) =>
+          el.getBoundingClientRect().top -
+          el.previousElementSibling.getBoundingClientRect().bottom,
+      );
+    assert(space >= 12, "Helper text needs clearance below divider");
+    searchWithUser = true;
+    await page.locator("#admin-query").fill("test@example.invalid");
+    await page.locator("#admin-search button").click();
+    await page.locator("[data-admin-action=block_user]").waitFor();
+    const gap = await page
+      .locator("#admin-results")
+      .evaluate(
+        (el) =>
+          el.getBoundingClientRect().top -
+          document
+            .querySelector("#admin-search-message")
+            .getBoundingClientRect().bottom,
+      );
+    assert(gap >= 16, "Search notice and results must not touch");
+    for (const selector of [
+      "#logout",
+      "[data-admin-action=block_user]",
+      "[data-admin-action=block_user_links]",
+      "#block-form button",
+    ]) {
+      assert.equal(
+        await page
+          .locator(selector)
+          .evaluate((el) => getComputedStyle(el).color),
+        "rgb(165, 50, 50)",
+      );
+    }
+    measurements.push(await measure(`admin-spacing-${width}`));
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/admin-spacing-${width}.png`,
+      fullPage: true,
+    });
+  }
+  searchWithUser = false;
+  member = false;
+
   const paths = [
     "/",
     "/dashboard/",
@@ -372,7 +619,11 @@ try {
             "/admin/",
           );
         if ([390, 768, 1440].includes(width))
-          await page.screenshot({ path: `${out}/${name}.png`, fullPage: true });
+          await page.screenshot({
+            animations: "disabled",
+            path: `${out}/${name}.png`,
+            fullPage: true,
+          });
       }
     }
   }
@@ -415,12 +666,14 @@ try {
     "https://oh.io.vn/link-moi",
   );
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/guest-result-desktop.png`,
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
   measurements.push(await measure("guest-result-mobile"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/guest-result-mobile.png`,
     fullPage: true,
   });
@@ -433,6 +686,7 @@ try {
   await page.locator('[name="label"]').fill("Tên ghi nhớ");
   measurements.push(await measure("custom-options-mobile"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/member-custom-mobile.png`,
     fullPage: true,
   });
@@ -447,6 +701,7 @@ try {
     .getByRole("heading", { name: "Không tìm thấy link", exact: true })
     .waitFor();
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/search-empty-mobile.png`,
     fullPage: true,
   });
@@ -458,6 +713,7 @@ try {
   await page.setViewportSize({ width: 320, height: 390 });
   measurements.push(await measure("edit-short-mobile"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/edit-short-mobile.png`,
     fullPage: false,
   });
@@ -466,13 +722,19 @@ try {
   assert.equal(lastEdit.label, "Tài liệu đã chỉnh sửa");
   await page.locator('[data-action="stats"]').first().click();
   await page.waitForSelector("#stats-dialog[open]");
+  await page.waitForSelector("#stats-content:not([aria-busy])");
   measurements.push(await measure("stats-short-mobile"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/stats-short-mobile.png`,
     fullPage: false,
   });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.screenshot({ path: `${out}/stats-desktop.png`, fullPage: false });
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/stats-desktop.png`,
+    fullPage: false,
+  });
   const dl = page.waitForEvent("download");
   await page.locator("#export-excel").click();
   const download = await dl;
@@ -495,6 +757,7 @@ try {
     const trigger = page.locator('[data-action="stats"]').first();
     await trigger.click();
     await page.waitForSelector("#stats-dialog[open]");
+    await page.waitForSelector("#stats-content:not([aria-busy])");
     assert.equal(await page.locator(".chart-bar").count(), 30);
     assert.equal(
       await page.locator(".chart-axis time").first().textContent(),
@@ -517,7 +780,10 @@ try {
       "One day must not fill the plot",
     );
     measurements.push(await measure(`single-day-stats-${width}`));
-    await page.screenshot({ path: `${out}/stats-single-day-${width}.png` });
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/stats-single-day-${width}.png`,
+    });
     const header = page.locator("#stats-dialog .dialog-top");
     const body = page.locator("#stats-dialog .dialog-body");
     const before = await header.boundingBox();
@@ -554,7 +820,10 @@ try {
     );
     assert.equal(boundaries.outerScroll, 0);
     assert(boundaries.scrollWidth <= boundaries.width);
-    await page.screenshot({ path: `${out}/stats-scrolled-${width}.png` });
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/stats-scrolled-${width}.png`,
+    });
     // Keyboard focus can reach the export action and returns to the opener.
     await page.locator("#stats-dialog [data-close]").focus();
     for (
@@ -581,6 +850,7 @@ try {
     );
     await trigger.click();
     await page.waitForSelector("#stats-dialog[open]");
+    await page.waitForSelector("#stats-content:not([aria-busy])");
     assert.equal(
       await body.evaluate((el) => el.scrollTop),
       0,
@@ -599,6 +869,7 @@ try {
   ];
   await page.locator('[data-action="stats"]').first().click();
   await page.waitForSelector("#stats-dialog[open]");
+  await page.waitForSelector("#stats-content:not([aria-busy])");
   assert.equal(await page.locator(".chart").count(), 0);
   assert(
     (await page.locator("#stats-content").textContent()).includes(
@@ -629,6 +900,7 @@ try {
     .getByRole("link", { name: "Tạo link đầu tiên", exact: true })
     .waitFor();
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/member-empty-desktop.png`,
     fullPage: true,
   });
@@ -654,7 +926,10 @@ try {
   await page.keyboard.press("Enter");
   assert.equal(await blockSelect.inputValue(), "url");
   await blockSelect.click();
-  await page.screenshot({ path: `${out}/admin-picker-open.png` });
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/admin-picker-open.png`,
+  });
   await page.getByRole("option", { name: "Tên miền và tên miền con" }).click();
   assert.equal(await blockSelect.inputValue(), "host");
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -688,6 +963,7 @@ try {
     await page.locator("footer [data-donate]").click();
     measurements.push(await measure(`donate-${width}`));
     await page.screenshot({
+      animations: "disabled",
       path: `${out}/donate-${width}.png`,
       fullPage: false,
     });
@@ -707,6 +983,7 @@ try {
   await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   measurements.push(await measure("text-zoom-200-percent"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/text-zoom-mobile.png`,
     fullPage: true,
   });
@@ -747,6 +1024,7 @@ try {
   );
   measurements.push(await measure("network-error-mobile"));
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/network-error-mobile.png`,
     fullPage: true,
   });
@@ -772,6 +1050,7 @@ try {
     "Invalid slug must not reach the API",
   );
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/invalid-slug-mobile.png`,
     fullPage: true,
   });
@@ -837,6 +1116,7 @@ try {
       .textContent.includes("kết quả trước đó"),
   );
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/search-error-mobile.png`,
     fullPage: true,
   });
@@ -864,6 +1144,7 @@ try {
   await page.locator("[data-action=delete]").click();
   assert.match(await page.locator("#delete-context").textContent(), /bai-viet/);
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/delete-context-mobile.png`,
     fullPage: false,
   });
@@ -888,6 +1169,7 @@ try {
   await page.waitForSelector("#retry-service:not([hidden])");
   assert.equal(await page.locator("#admin-content").isVisible(), false);
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/admin-load-error-mobile.png`,
     fullPage: true,
   });
@@ -917,6 +1199,7 @@ try {
   );
   await page.locator("[data-admin-action=block_user]").click();
   await page.screenshot({
+    animations: "disabled",
     path: `${out}/admin-confirm-mobile.png`,
     fullPage: false,
   });
@@ -1047,6 +1330,7 @@ try {
     JSON.stringify(consoleErrors),
   );
   // Unmocked local Worker smoke test and final screenshots.
+  await checkFilteredRename();
   const real = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
@@ -1084,7 +1368,11 @@ try {
           "guest and member creation with verification fixture",
           "clipboard",
           "search and empty states",
-          "edit/save",
+          "edit/save and acknowledged slug rename with restored focus",
+          "renamed result outside current search restores focus and remains discoverable",
+          "21 pending page/viewport states, bounded SVG and non-interactive skeletons",
+          "slug baseline, admin panel alignment, divider clearance and risk colors",
+          "stats skeleton, disabled export and cancellation before response",
           "stats and Excel download",
           "delete cancellation and confirmation",
           "admin policy and blocklist",

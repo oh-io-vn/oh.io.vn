@@ -67,6 +67,17 @@
 - Gắn lỗi với trường tương ứng. Mở phần tùy chỉnh trước khi focus vào trường lỗi.
 - Khi chờ API, báo đang xử lý và ngăn gửi trùng. Không cho sửa cấu hình quản trị
   trước khi tải thành công các giá trị hiện tại.
+- Skeleton dùng chung từ `src/web/loading.js`, chỉ đặt ở vùng đang chờ dữ liệu
+  (tài khoản, form kết nối, danh sách, thống kê, quản trị). Không che nội dung
+  tĩnh bằng thời gian chờ giả. Skeleton không chứa input/nút và phải có trạng
+  thái đọc được. Khi lỗi phải kết thúc skeleton và đưa ra cách thử lại.
+- Kiểm tra giao diện ngay khi HTML vừa hiện, lúc API chậm và sau khi tải xong.
+  Không dùng logo làm placeholder lớn. Hộp thống kê đang tải vẫn đóng được,
+  phản hồi muộn không tự mở lại hộp. Khóa xuất file đến khi dữ liệu sẵn sàng.
+- Animation chỉ chuyển nhẹ màu/độ hiện của nội dung trong 150–180ms. Khung hộp
+  thoại luôn đục, không làm nền xuyên qua. Tắt mọi hiệu ứng khi reduced motion.
+- Đăng xuất, xóa, khóa, vô hiệu hóa và thêm/gỡ chặn dùng lớp `danger` hoặc
+  `danger-button`. Giữ nhãn hành động và xác nhận cho các thao tác rủi ro.
 - Đặt phản hồi gần nơi thao tác. Phân biệt lỗi ghi dữ liệu với lỗi tải lại sau khi
   đã ghi thành công. Không thông báo thất bại cho thao tác đã được lưu.
 - Hộp sửa, xóa, thống kê và xác nhận quản trị phải nêu link/tài khoản liên quan.
@@ -77,6 +88,15 @@
   vùng cuộn. Không đặt tiêu đề sticky giữa nội dung để tránh chữ lọt phía trên.
 - Căn đáy các ô nhập cùng hàng dù nhãn xuống dòng. Select giữ ngữ nghĩa native;
   style menu bằng `base-select` khi được hỗ trợ và giữ fallback cho trình duyệt cũ.
+- Prefix và input trong `.slug-input` cùng cỡ chữ và cùng hàng. Quy tắc margin
+  của `.fields` chỉ áp dụng input con trực tiếp của label, không lồng vào prefix.
+- Hai panel quản trị cùng hàng phải cao bằng nhau. Giữ nội dung/nút Cloudflare
+  theo luồng bình thường, phần trống còn lại nằm cuối panel. Chừa ít nhất 12px
+  giữa đường kẻ và trợ giúp, 16px giữa thông báo tìm kiếm và kết quả.
+- Đổi mã chỉ áp dụng link còn hoạt động thuộc tài khoản hiện tại. Cảnh báo và
+  xác nhận địa chỉ cũ ngừng hoạt động. Giữ thống kê, chủ sở hữu, thời hạn và
+  hạn mức. Mã cũ phải thành tombstone trong cùng giao dịch và không cấp lại.
+  Migration `0003` phải có trước khi bật đổi mã trên production.
 - Biểu đồ lượt truy cập dùng đủ 30 ngày từ `since` của API, giữ các ngày không có
   lượt ghi nhận và cảnh báo dữ liệu thiếu. Luôn thử trường hợp chỉ một ngày có số
   liệu; không để một cột giãn hết chiều ngang.

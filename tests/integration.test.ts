@@ -287,7 +287,7 @@ describe("D1 và đường chuyển hướng thật", () => {
       ).toBe(0);
     },
   );
-  it("tài khoản chỉ sửa/xóa link của chính mình và mã không thay đổi", async () => {
+  it("sửa thông tin không đổi mã khi API không gửi mã mới", async () => {
     await insert("owner-link");
     const token = "b".repeat(64);
     await env.DB.prepare(
@@ -313,7 +313,6 @@ describe("D1 và đường chuyển hướng thật", () => {
         body: JSON.stringify({
           target: "https://example.org/updated",
           label: "New label",
-          slug: "another-slug",
         }),
       },
     );
@@ -584,5 +583,257 @@ describe("D1 và đường chuyển hướng thật", () => {
       { redirect: "manual" },
     );
     expect(result.headers.get("Location")).toBe("/?error=login");
+  });
+});
+
+// Exercise rename against D1, not browser fixtures: analytics, tombstones,
+// authorization, collisions and quota accounting must move together.
+describe("đổi mã link", () => {
+  let requestNetwork = 1;
+  async function headers() {
+    const token = "a".repeat(64);
+    await env.DB.prepare(
+      "INSERT OR REPLACE INTO sessions(hash,user_id,expires_at) VALUES(?,?,?)",
+    )
+      .bind(await hash(token), "u1", Date.now() + 86400000)
+      .run();
+    const cookie = { Cookie: "oh_session=" + token };
+    const identity = (await (
+      await SELF.fetch("http://localhost/api/me", { headers: cookie })
+    ).json()) as { csrf: string };
+    return {
+      ...cookie,
+      "CF-Connecting-IP": `192.0.2.${requestNetwork++}`,
+      Origin: "http://localhost:8787",
+      "Content-Type": "application/json",
+      "X-CSRF-Token": identity.csrf,
+    };
+  }
+  async function edit(
+    from: string,
+    slug: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return SELF.fetch(`http://localhost/api/links/${from}/edit`, {
+      method: "PATCH",
+      headers: await headers(),
+      body: JSON.stringify({
+        slug,
+        target: "https://example.org/renamed",
+        label: "Tên mới",
+        ...overrides,
+      }),
+    });
+  }
+  it("giữ thống kê, chủ sở hữu, thời hạn và hạn mức; mã cũ ngừng hoạt động và không cấp lại", async () => {
+    await insert("old-code");
+    await env.DB.prepare(
+      "INSERT INTO analytics VALUES('old-code','2026-10-18','Zalo','Điện thoại',7)",
+    ).run();
+    const before = await env.DB.prepare(
+      "SELECT * FROM links WHERE slug='old-code'",
+    ).first();
+    const quota = await env.DB.prepare(
+      "SELECT count(*) AS n FROM creation_events",
+    ).first();
+    // Rename works at the creation cap and even with creation paused.
+    await env.DB.prepare(
+      "UPDATE policy SET create_enabled=0,user_limit=0,active_limit=0,automatic_level=90",
+    ).run();
+    const result = await edit("old-code", "NEW-code");
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ slug: "new-code" });
+    const current = await env.DB.prepare(
+      "SELECT * FROM links WHERE slug='new-code'",
+    ).first();
+    expect(current).toMatchObject({
+      owner_id: before!.owner_id,
+      created_at: before!.created_at,
+      last_access_at: before!.last_access_at,
+      idle_expires_at: before!.idle_expires_at,
+      months: 12,
+      status: "active",
+    });
+    expect(
+      await env.DB.prepare("SELECT slug,clicks FROM analytics").first(),
+    ).toEqual({ slug: "new-code", clicks: 7 });
+    expect(
+      await env.DB.prepare("SELECT count(*) AS n FROM creation_events").first(),
+    ).toEqual(quota);
+    expect(
+      await env.DB.prepare(
+        "SELECT owner_id,target,host,label,status FROM links WHERE slug='old-code'",
+      ).first(),
+    ).toEqual({
+      owner_id: null,
+      target: null,
+      host: null,
+      label: null,
+      status: "deleted",
+    });
+    expect(
+      (await SELF.fetch("http://localhost/old-code", { redirect: "manual" }))
+        .status,
+    ).toBe(404);
+    expect(
+      (
+        await SELF.fetch("http://localhost/new-code", {
+          redirect: "manual",
+          method: "HEAD",
+        })
+      ).headers.get("Location"),
+    ).toBe("https://example.org/renamed");
+    expect((await edit("new-code", "old-code")).status).toBe(409);
+    await env.DB.prepare(
+      "UPDATE policy SET create_enabled=1,user_limit=20,active_limit=100,automatic_level=0",
+    ).run();
+    await expect(insert("old-code")).rejects.toThrow();
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links/new-code/stats", {
+          headers: await headers(),
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links/old-code/stats", {
+          headers: await headers(),
+        })
+      ).status,
+    ).toBe(404);
+    const list = (await (
+      await SELF.fetch("http://localhost/api/links", {
+        headers: await headers(),
+      })
+    ).json()) as { links: { slug: string }[] };
+    expect(list.links.map((l) => l.slug)).toEqual(["new-code"]);
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links/new-code/delete", {
+          method: "DELETE",
+          headers: await headers(),
+          body: "{}",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await env.DB.prepare("SELECT count(*) AS n FROM analytics").first(),
+    ).toEqual({ n: 0 });
+  });
+  it.each(["ab", "has space", "địa-chỉ", "admin", "x".repeat(65)])(
+    "từ chối mã không hợp lệ %s",
+    async (slug) => {
+      await insert("original");
+      expect((await edit("original", slug)).status).toBe(400);
+      expect(
+        (await env.DB.prepare(
+          "SELECT target FROM links WHERE slug='original'",
+        ).first())!.target,
+      ).toBe("https://example.com/page");
+    },
+  );
+  it("xung đột mã rollback cả địa chỉ đích và thống kê", async () => {
+    await insert("original");
+    await insert("taken");
+    await env.DB.prepare(
+      "INSERT INTO analytics VALUES('original','2026-10-18','Zalo','Máy tính',3)",
+    ).run();
+    expect((await edit("original", "taken")).status).toBe(409);
+    expect(
+      (await env.DB.prepare(
+        "SELECT target FROM links WHERE slug='original'",
+      ).first())!.target,
+    ).toBe("https://example.com/page");
+    expect(
+      await env.DB.prepare("SELECT slug,clicks FROM analytics").first(),
+    ).toEqual({ slug: "original", clicks: 3 });
+    expect((await edit("original", "ORIGINAL")).status).toBe(200);
+  });
+  it("không cho khách, tài khoản khác, thiếu CSRF hoặc tài khoản khóa đổi mã", async () => {
+    await insert("mine");
+    await insert("guest", null);
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links/mine/edit", {
+          method: "PATCH",
+          headers: {
+            Origin: "http://localhost:8787",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            slug: "changed",
+            target: "https://example.org",
+          }),
+        })
+      ).status,
+    ).toBe(401);
+    expect((await edit("guest", "changed")).status).toBe(404);
+    await env.DB.prepare(
+      "INSERT INTO users VALUES('u2','two@example.com','Two',0,0)",
+    ).run();
+    await insert("theirs", "u2");
+    expect((await edit("theirs", "changed")).status).toBe(404);
+    const h = await headers();
+    h["X-CSRF-Token"] = "invalid";
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links/mine/edit", {
+          method: "PATCH",
+          headers: h,
+          body: JSON.stringify({
+            slug: "changed",
+            target: "https://example.org",
+          }),
+        })
+      ).status,
+    ).toBe(403);
+    await env.DB.prepare("UPDATE users SET blocked=1 WHERE id='u1'").run();
+    expect((await edit("mine", "changed")).status).toBe(403);
+  });
+  it.each(["blocked", "expired", "deleted", "idle", "fixed"])(
+    "không đổi mã link %s",
+    async (state) => {
+      await insert("stopped");
+      if (state === "idle")
+        await env.DB.prepare(
+          "UPDATE links SET idle_expires_at=0 WHERE slug='stopped'",
+        ).run();
+      else if (state === "fixed")
+        await env.DB.prepare(
+          "UPDATE links SET fixed_expires_at=0 WHERE slug='stopped'",
+        ).run();
+      else
+        await env.DB.prepare("UPDATE links SET status=? WHERE slug='stopped'")
+          .bind(state)
+          .run();
+      expect((await edit("stopped", "changed")).status).toBe(409);
+    },
+  );
+  it("hai yêu cầu cạnh tranh cùng mã mới chỉ một yêu cầu thành công", async () => {
+    await insert("first");
+    await insert("second");
+    const h = await headers();
+    const results = await Promise.all(
+      ["first", "second"].map((slug) =>
+        SELF.fetch(`http://localhost/api/links/${slug}/edit`, {
+          method: "PATCH",
+          headers: h,
+          body: JSON.stringify({
+            slug: "winner",
+            target: "https://example.org",
+          }),
+        }),
+      ),
+    );
+    expect(results.map((r) => r.status).sort()).toEqual([200, 409]);
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS n FROM links WHERE owner_id='u1' AND status='active'",
+      ).first(),
+    ).toEqual({ n: 2 });
+    expect(
+      await env.DB.prepare("PRAGMA foreign_key_check").all(),
+    ).toMatchObject({ results: [] });
   });
 });
