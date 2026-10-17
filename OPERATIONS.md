@@ -88,9 +88,17 @@ GitHub environment `production` chỉ cho phép branch `main`, gồm:
 - Secret `CLOUDFLARE_API_TOKEN`: token riêng cho triển khai Worker hiện có.
 - Variable `CLOUDFLARE_ACCOUNT_ID`: tài khoản Cloudflare của dự án.
 
-Token chỉ được đưa vào bước `wrangler deploy`, không cấp cho job kiểm tra hay
-bước cài dependency. Không lưu token trong mã nguồn, artifact hoặc log. Khi xoay
-token, cập nhật secret trong environment này trước khi thu hồi token cũ.
+Token chỉ có quyền Editor trên Worker `oh-io-vn` và chỉ được đưa vào bước triển
+khai, không cấp cho job kiểm tra hay bước cài dependency. Không lưu token trong
+mã nguồn, artifact hoặc log. Khi xoay token, cập nhật secret trong environment
+này trước khi thu hồi token cũ.
+
+Workflow dùng `wrangler versions upload` rồi `wrangler versions deploy` để đưa
+đúng version vừa tải lên phục vụ 100% lưu lượng. Tag gồm commit SHA, run ID và
+lần chạy, tránh chọn nhầm version khi chạy lại CI. Cách này giữ nguyên tên miền,
+routes, lịch cron và các thiết lập không thuộc version; không cần cấp quyền
+truy cập zone cho token. Khi cần đổi các thiết lập đó hoặc migration Durable
+Objects, thực hiện riêng bằng tài khoản đủ quyền và kiểm tra sau thay đổi.
 
 Sau deploy, `scripts/verify-deployment.mjs` đối chiếu `/deployment.json` với commit
 SHA, kiểm tra bảy trang, CSP, SHA-256 của assets trang chủ và `/api/config`.

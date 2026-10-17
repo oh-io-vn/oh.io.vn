@@ -76,7 +76,9 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Thiếu secret CLOUDFLARE_API_TOKEN trong environment production."; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Thiếu variable CLOUDFLARE_ACCOUNT_ID trong environment production."; exit 1; }
-          npx wrangler deploy --message "GitHub Actions $GITHUB_SHA"
+          version_tag="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          npx wrangler versions upload --tag "$version_tag" --message "GitHub Actions $GITHUB_SHA"
+          npx wrangler versions deploy --version-tag "$version_tag@100" --yes --message "GitHub Actions $GITHUB_SHA"
       - name: Kiểm tra website sau deploy
         if: steps.current.outputs.deploy == 'true'
         run: node scripts/verify-deployment.mjs "$GITHUB_SHA"
