@@ -48,10 +48,10 @@ export function targetValue(value: unknown, origin = "https://oh.io.vn"): URL {
   } catch {
     throw new Error("Nhập địa chỉ web đầy đủ.");
   }
-  if (!["http:", "https:"].includes(u.protocol) || u.username || u.password)
-    throw new Error(
-      "Chỉ chấp nhận địa chỉ web không chứa thông tin đăng nhập.",
-    );
+  if (!["http:", "https:"].includes(u.protocol))
+    throw new Error("Chỉ hỗ trợ link bắt đầu bằng http:// hoặc https://.");
+  if (u.username || u.password)
+    throw new Error("Địa chỉ web không được chứa thông tin đăng nhập.");
   const h = u.hostname.toLowerCase().replace(/\.$/, "");
   if (
     h === new URL(origin).hostname ||

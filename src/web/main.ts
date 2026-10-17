@@ -72,7 +72,11 @@ function message(selector: string, value: string, error = false) {
     el.classList.toggle("error", error);
   }
 }
-async function copy(value: string, button: HTMLButtonElement) {
+async function copy(
+  value: string,
+  button: HTMLButtonElement,
+  errorSelector?: string,
+) {
   try {
     await copyText(value);
     const old = button.innerHTML;
@@ -82,7 +86,8 @@ async function copy(value: string, button: HTMLButtonElement) {
     }, 1800);
   } catch {
     message(
-      $("#link-list") ? "#dashboard-notice" : "#form-message",
+      errorSelector ??
+        ($("#link-list") ? "#dashboard-notice" : "#form-message"),
       "Chưa sao chép được. Hãy thử lại.",
       true,
     );
@@ -144,6 +149,46 @@ async function account() {
 async function home() {
   const form = $<HTMLFormElement>("#shorten-form");
   if (!form) return;
+  const target = $<HTMLInputElement>("#target");
+  const resultBox = $("#result");
+  const setTargetError = (text: string) => {
+    message("#target-error", text, !!text);
+    if (text) target.setAttribute("aria-invalid", "true");
+    else target.removeAttribute("aria-invalid");
+  };
+  const validateForm = () => {
+    const value = target.value.trim();
+    let error = "";
+    if (!value) error = "Nhập địa chỉ cần rút gọn.";
+    else if (target.validity.typeMismatch)
+      error = "Nhập địa chỉ đầy đủ, bắt đầu bằng http:// hoặc https://.";
+    else {
+      try {
+        const url = new URL(value);
+        if (!["http:", "https:"].includes(url.protocol))
+          error = "Chỉ hỗ trợ link bắt đầu bằng http:// hoặc https://.";
+        else if (url.username || url.password)
+          error = "Địa chỉ web không được chứa thông tin đăng nhập.";
+      } catch {
+        error = "Nhập địa chỉ đầy đủ, bắt đầu bằng http:// hoặc https://.";
+      }
+    }
+    setTargetError(error);
+    if (error) {
+      target.focus();
+      return false;
+    }
+    if (!form.checkValidity()) {
+      message("#form-message", "Kiểm tra lại các trường tùy chỉnh.", true);
+      form.querySelector<HTMLElement>(":invalid")?.focus();
+      return false;
+    }
+    return true;
+  };
+  target.addEventListener("input", () => {
+    setTargetError("");
+    resultBox.hidden = true;
+  });
   const verification = new VerificationGate();
   let widget: string | undefined;
   let scriptLoad: Promise<void> | null = null;
@@ -312,6 +357,8 @@ async function home() {
     )!;
     if (button.disabled) return;
     message("#form-message", "");
+    resultBox.hidden = true;
+    if (!validateForm()) return;
     button.disabled = true;
     button.textContent = verification.ready
       ? "Đang tạo link…"
@@ -321,7 +368,6 @@ async function home() {
       if (!verification.ready && !challengeRunning) await startVerification();
       const token = await verification.take();
       restartNeeded = true;
-      if (!form.reportValidity()) return;
       button.textContent = "Đang tạo link…";
       const values = new FormData(form);
       const fixed = String(values.get("fixed_expires_at") ?? "");
@@ -337,15 +383,27 @@ async function home() {
       });
       const link = $<HTMLAnchorElement>("#result-url");
       link.href = result.url;
-      link.textContent = `oh.io.vn · ${result.slug}`;
-      $("#result").hidden = false;
+      link.textContent = result.url;
+      resultBox.hidden = false;
       $("#result-expiry").textContent =
         `Hết hạn ${date(result.expires_at)}.${me.user ? "" : " Lưu lại link để sử dụng."}`;
       $("#copy-result").onclick = () =>
         copy(result.url, $<HTMLButtonElement>("#copy-result"));
+      resultBox.focus({ preventScroll: true });
+      resultBox.scrollIntoView({ block: "nearest" });
     } catch (e) {
       if (!restartNeeded) verificationError((e as Error).message);
-      else message("#form-message", (e as Error).message, true);
+      else {
+        const error = (e as Error).message;
+        if (
+          /^(Nhập địa chỉ|Chỉ hỗ trợ link|Địa chỉ web không|Không rút gọn lại link|Không hỗ trợ địa chỉ mạng nội bộ)/.test(
+            error,
+          )
+        ) {
+          setTargetError(error);
+          target.focus();
+        } else message("#form-message", error, true);
+      }
     } finally {
       button.disabled = false;
       button.textContent = "Rút gọn";
@@ -379,6 +437,7 @@ async function loadLinks(append = false) {
     expiryHold = !!data.expiryHeld;
     next = data.next;
     $("#load-more").hidden = !next;
+    $(".toolbar").hidden = !links.length && !q.trim();
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
       : q.trim()
@@ -391,8 +450,14 @@ async function loadLinks(append = false) {
         : "",
     );
   } catch (e) {
-    if (request === listRequest)
+    if (request === listRequest) {
       message("#dashboard-notice", (e as Error).message, true);
+      if (!append && !links.length) {
+        $("#link-list").innerHTML =
+          '<div class="empty" role="status"><h2>Chưa tải được đường dẫn</h2><p>Kiểm tra kết nối rồi thử lại.</p><button id="retry-links" class="secondary" type="button">Tải lại danh sách</button></div>';
+        $("#retry-links").addEventListener("click", () => void loadLinks());
+      }
+    }
   } finally {
     if (request === listRequest) more.disabled = false;
   }
@@ -584,7 +649,7 @@ function renderStats(data: Stats) {
   const days = groups("day").sort(([a], [b]) => a.localeCompare(b));
   const max = Math.max(...days.map(([, n]) => n), 1);
   $("#stats-content").innerHTML =
-    `<p class="small">${esc(selected!.slug)} · Từ ${data.since}</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Có khoảng thiếu dữ liệu. Tổng chỉ phản ánh lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-label="Lượt theo ngày">${days.map(([day, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%" title="${day}: ${n}"></span>`).join("")}</div><div class="stats-grid"><div><h3 class="small">Nhóm nguồn</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Số liệu theo ngày</summary>${render(days)}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Về số liệu</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">${esc(selected!.slug)} · Từ ${data.since}</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Có khoảng thiếu dữ liệu. Tổng chỉ phản ánh lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${esc(days[0][0])}</span><span>${esc(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nhóm nguồn</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days)}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Về số liệu</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 async function admin() {
   if (!$("#admin-content")) return;
@@ -731,6 +796,13 @@ async function admin() {
   });
 }
 configureDialogs();
+const retryService =
+  document.querySelector<HTMLButtonElement>("#retry-service");
+if (retryService) retryService.onclick = () => location.reload();
+const reportCopy =
+  document.querySelector<HTMLButtonElement>("#copy-report-email");
+if (reportCopy)
+  reportCopy.onclick = () => copy("hi@oh.io.vn", reportCopy, "#report-message");
 try {
   await account();
   await Promise.all([home(), dashboard(), admin()]);
@@ -742,4 +814,13 @@ try {
       true,
     ),
   );
+  if (retryService) retryService.hidden = false;
+  const submit = document.querySelector<HTMLButtonElement>(
+    '#shorten-form button[type="submit"]',
+  );
+  if (submit) submit.disabled = true;
+  const list = document.querySelector<HTMLElement>("#link-list");
+  if (list && list.textContent?.includes("Đang tải đường dẫn"))
+    list.innerHTML =
+      '<div class="empty" role="status"><h2>Chưa tải được đường dẫn</h2><p>Kiểm tra kết nối rồi thử lại.</p></div>';
 }

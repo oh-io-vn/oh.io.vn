@@ -300,6 +300,10 @@ body[data-page="index"] main {
   display: flex;
   gap: var(--space-3);
 }
+.input-stack {
+  flex: 1;
+  min-width: 0;
+}
 input,
 select,
 textarea {
@@ -396,6 +400,8 @@ input[type="datetime-local"] {
 }
 .input-row .primary {
   min-width: 112px;
+  min-height: 48px;
+  align-self: flex-start;
   font-size: 1rem;
 }
 .hint,
@@ -417,6 +423,18 @@ input[type="datetime-local"] {
 }
 .account-hint a:hover {
   text-decoration: underline;
+}
+.field-error {
+  margin: var(--space-2) 0 0;
+  color: var(--danger);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+.field-error:empty {
+  display: none;
+}
+.retry-service {
+  margin-bottom: var(--space-6);
 }
 .optional {
   margin-top: var(--space-6);
@@ -509,6 +527,10 @@ form .notice {
   border: 1px solid #c2ddcc;
   border-radius: var(--radius-control);
 }
+.result:focus {
+  outline: 2px solid var(--success);
+  outline-offset: 3px;
+}
 .result-label {
   margin: 0 0 var(--space-3);
   color: var(--success);
@@ -525,23 +547,18 @@ form .notice {
   align-items: center;
   justify-content: space-between;
 }
-.feature-strip {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.usage-facts {
   margin-top: var(--space-8);
   padding-top: var(--space-8);
   border-top: 1px solid var(--line);
-  gap: var(--space-6);
 }
-.feature-strip h2 {
-  font-size: 0.875rem;
-  margin: 0 0 var(--space-2);
-  letter-spacing: -0.015em;
-}
-.feature-strip p {
+.usage-facts p {
   font-size: 0.875rem;
   color: var(--muted);
-  margin: 0;
+  margin: 0 0 var(--space-2);
+}
+.usage-facts p:last-child {
+  margin-bottom: 0;
 }
 .home-learn {
   display: block;
@@ -780,6 +797,20 @@ dialog {
 .prose .primary {
   color: white;
 }
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: var(--space-6) 0;
+}
+.report-guidance {
+  border-top: 1px solid var(--line);
+  margin-top: var(--space-8);
+  padding-top: var(--space-2);
+}
+.report-guidance h2 {
+  margin-top: var(--space-4);
+}
 
 /* Native dialogs keep focus trapping, keyboard dismissal and safe scrolling. */
 dialog {
@@ -894,9 +925,16 @@ dialog h2 {
   display: flex;
   align-items: end;
   gap: 4px;
-  margin: var(--space-6) 0;
+  margin: var(--space-6) 0 0;
   border-bottom: 1px solid var(--line);
   padding-top: var(--space-2);
+}
+.chart-axis {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+  font-variant-numeric: tabular-nums;
 }
 .chart span {
   background: var(--blue);
@@ -1015,9 +1053,6 @@ td {
 }
 
 @media (max-width: 900px) {
-  .nav-about {
-    display: none;
-  }
   .link-card {
     align-items: start;
   }
@@ -1106,12 +1141,8 @@ td {
   .stats-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .feature-strip {
-    gap: 20px;
-  }
-  .feature-strip h2,
-  .feature-strip p {
-    font-size: 0.8125rem;
+  .usage-facts {
+    padding-top: var(--space-6);
   }
   .page-head {
     align-items: start;
@@ -1199,9 +1230,6 @@ td {
     border-top: 1px solid var(--line);
     padding-top: var(--space-2);
   }
-  body:has(#nav-dashboard[hidden]) .header-inner > nav {
-    display: none;
-  }
 }
 @media (max-width: 420px) {
   .header-inner {
@@ -1212,20 +1240,6 @@ td {
   }
   .shortener {
     padding: 20px;
-  }
-  .feature-strip {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--space-4);
-    padding-top: var(--space-6);
-  }
-  .feature-strip > div {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .feature-strip h2 {
-    margin: 0;
-    font-size: 0.875rem;
   }
   .desktop-break {
     display: none;
