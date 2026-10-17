@@ -311,7 +311,11 @@ try {
         ) {
           assert.equal(
             await page
-              .locator('.nav-link[aria-current="page"]')
+              .locator(
+                path === "/about/"
+                  ? 'footer a[aria-current="page"]'
+                  : '.nav-link[aria-current="page"]',
+              )
               .getAttribute("href"),
             path,
           );
@@ -919,7 +923,7 @@ try {
   overviewFailure = false;
 
   // Internal navigation is exercised through actual links as well as direct routes.
-  await page.locator(".nav-about").click();
+  await page.locator('footer a[href="/about/"]').click();
   await page.waitForURL(origin + "/about/");
   await page.locator('footer a[href="/report/"]').click();
   await page.waitForURL(origin + "/report/");

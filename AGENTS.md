@@ -27,6 +27,8 @@
   gradient, bóng, card hay animation nếu chúng không giúp người dùng thao tác.
 - Dùng style hiện có trước khi thêm style mới. Các thành phần tương đương phải
   có cùng trạng thái hover, focus, disabled, loading và error.
+- Dùng SVG cho icon, kể cả mũi tên, dấu chọn và dấu mở rộng. Không dùng ký tự
+  đặc biệt thay icon. Không đẩy hành động xuống đáy bằng khoảng trống tự giãn.
 - Kiểm tra 1440, 768 và 390px; thử thêm 320px và chữ phóng to 200% khi đổi layout.
 - Giữ nhãn hiển thị, focus dễ thấy, thứ tự heading đúng, mục tiêu chạm tối thiểu
   44px và tương phản chữ thường tối thiểu 4.5:1. Tôn trọng reduced motion.
@@ -52,12 +54,16 @@
   lượt ghi nhận và cảnh báo dữ liệu thiếu. Luôn thử trường hợp chỉ một ngày có số
   liệu; không để một cột giãn hết chiều ngang.
 - Giữ navigation nhất quán. Tìm kiếm có nhãn, trạng thái kết quả và cách xóa lọc.
+- Header chỉ có các thao tác chính. Liên kết “Về dự án” nằm ở footer.
 - Kiểm tra trạng thái trống, lỗi, đang tải, URL dài và tên dài. Không thêm bước
   không cần thiết vào luồng tạo link.
 
 ## VIETNAMESE UX WRITING RULES
 
 - Viết tiếng Việt tự nhiên, câu ngắn và rõ nghĩa. Ưu tiên sự rõ ràng hơn hoa mỹ.
+- Tránh cách gọi mơ hồ như “tính hạn”. Nói rõ lúc nào link hết hạn và thao tác
+  thay đổi điều đó ra sao. Các trang giới thiệu, riêng tư và quy định không dùng
+  dấu chấm phẩy trong nội dung, tách thành câu rõ nghĩa.
 - Dùng dấu gạch ngang (-) để phân tách tiêu đề và các thông tin trên giao diện.
 - Nội dung giới thiệu và lời xưng hô dùng “oh.io.vn” hoặc cách viết trung tính;
   không dùng tên riêng của chủ dự án để tự giới thiệu dịch vụ.

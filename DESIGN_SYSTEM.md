@@ -58,6 +58,10 @@ keyboard focus continuity, and no overflow at 390, 768 and 1440px. The existing
 palette, icon and list structure are deliberate choices, not defects to remove.
 
 - Shared header, active navigation, keyboard skip link and shared footer.
+- Keep the About link in the footer, outside the header's primary actions.
+- Use SVG icons for dropdown arrows, selection marks and disclosure controls.
+  Admin panels fit their content. Keep the Cloudflare action next to usage data
+  with normal spacing instead of stretching it to the bottom of a taller panel.
 - One prominent action per task; secondary buttons are neutral and outlined.
 - Controls have visible labels, focus rings and at least 44px touch targets.
 - Link records form a divided list, with aligned actions on desktop and wrapping

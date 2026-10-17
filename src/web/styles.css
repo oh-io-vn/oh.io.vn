@@ -36,6 +36,10 @@
   --space-20: 80px;
   --shell: 1120px;
   --transition: 150ms ease;
+  --icon-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2361656e' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  --icon-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%231949bc' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m4 10 4 4 8-8'/%3E%3C/svg%3E");
+  --icon-plus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2361656e' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 10h12M10 4v12'/%3E%3C/svg%3E");
+  --icon-minus: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2361656e' stroke-width='1.8' stroke-linecap='round'%3E%3Cpath d='M4 10h12'/%3E%3C/svg%3E");
 }
 
 * {
@@ -324,7 +328,7 @@ textarea::placeholder {
 select {
   appearance: none;
   padding-right: 44px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2361656e' stroke-width='1.8'%3E%3Cpath d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-image: var(--icon-chevron);
   background-repeat: no-repeat;
   background-position: right 14px center;
   background-size: 20px;
@@ -343,8 +347,18 @@ select {
     align-items: center;
   }
   select::picker-icon {
-    color: var(--muted);
+    content: "";
+    width: 20px;
+    height: 20px;
+    background: var(--icon-chevron) center / contain no-repeat;
     margin-left: auto;
+    flex-shrink: 0;
+  }
+  select option::checkmark {
+    content: "";
+    width: 20px;
+    height: 20px;
+    background: var(--icon-check) center / contain no-repeat;
     flex-shrink: 0;
   }
   select::picker(select) {
@@ -553,13 +567,14 @@ input[aria-invalid="true"],
   gap: var(--space-4);
 }
 .optional summary::after {
-  content: "+";
-  color: var(--muted);
-  font-size: 20px;
-  font-weight: 400;
+  content: "";
+  width: 20px;
+  height: 20px;
+  background: var(--icon-plus) center / contain no-repeat;
+  flex-shrink: 0;
 }
 .optional[open] > summary::after {
-  content: "−";
+  background-image: var(--icon-minus);
 }
 summary::-webkit-details-marker {
   display: none;
@@ -1146,6 +1161,7 @@ dialog h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-6);
+  align-items: start;
 }
 .panel {
   padding: var(--space-6);
@@ -1159,12 +1175,7 @@ dialog h2 {
   margin: 0 0 var(--space-6);
   font-size: 1.125rem;
 }
-.usage-panel {
-  display: flex;
-  flex-direction: column;
-}
 .cloudflare-actions {
-  margin-top: auto;
   padding-top: var(--space-6);
 }
 .cloudflare-actions p {
