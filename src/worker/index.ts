@@ -49,7 +49,7 @@ app.onError((error, c) => {
   if (error instanceof HTTPException)
     return c.json({ error: error.message }, error.status);
   console.error("request_failed", { category: error.name });
-  return c.json({ error: "Dịch vụ đang bận. Vui lòng thử lại sau." }, 503);
+  return c.json({ error: "Dịch vụ đang bận. Hãy thử lại sau ít phút." }, 503);
 });
 app.route("/auth", auth);
 app.use("/api/*", async (c, next) => {
@@ -149,7 +149,7 @@ app.post("/api/links", async (c) => {
     );
   if (!(await verifyTurnstile(c, body.turnstile)))
     return c.json(
-      { error: "Xác minh chưa thành công. Vui lòng thử lại." },
+      { error: "Không xác minh được trình duyệt. Hãy thử lại." },
       400,
     );
   const actor = await networkKey(c);
@@ -199,14 +199,14 @@ app.post("/api/links", async (c) => {
       if (message.includes("quota:")) {
         const reason = message.match(/quota:([a-z_]+)/)?.[1];
         const messages: Record<string, string> = {
-          paused: "Tạm ngừng tạo link mới để bảo vệ tài nguyên.",
+          paused: "Tạm ngừng tạo link mới. Hãy quay lại sau.",
           guest_paused:
             "Tạm ngừng tạo link khách. Bạn có thể đăng nhập để thử lại.",
           global:
-            "Đã hết hạn mức tạo link của toàn dịch vụ trong 24 giờ. Vui lòng quay lại sau.",
+            "Dịch vụ đã đạt giới hạn tạo link trong 24 giờ. Hãy quay lại sau.",
           actor:
-            "Bạn đã hết hạn mức tạo link trong 24 giờ. Hạn mức khôi phục dần sau 24 giờ kể từ mỗi lần tạo.",
-          active: "Bạn đã đạt giới hạn link đang hoạt động.",
+            "Bạn đã đạt giới hạn tạo link trong 24 giờ. Mỗi lượt tạo sẽ được tính lại sau 24 giờ.",
+          active: "Bạn đã đạt giới hạn link đang hoạt động. Xóa link không còn dùng rồi thử lại.",
           blocked: "Tài khoản đã bị khóa.",
         };
         c.header("Retry-After", "3600");
@@ -218,7 +218,7 @@ app.post("/api/links", async (c) => {
       throw e;
     }
   }
-  return c.json({ error: "Chưa tạo được mã. Vui lòng thử lại." }, 503);
+  return c.json({ error: "Không tạo được link lúc này. Hãy thử lại." }, 503);
 });
 app.get("/api/links", async (c) => {
   const user = c.get("user");
@@ -275,7 +275,7 @@ app.patch("/api/links/:slug/edit", async (c) => {
     (l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
     (!expiryHeld(p, now) && l.idle_expires_at <= now)
   )
-    return c.json({ error: "Link đã ngừng hoạt động, không thể sửa." }, 409);
+    return c.json({ error: "Link đã ngừng hoạt động nên không thể sửa." }, 409);
   const b = await readBody(c);
   try {
     const target = targetValue(b.target, c.env.APP_ORIGIN);
@@ -526,7 +526,7 @@ app.get("/api/internal/backup", async (c) => {
     );
   return c.body(result, 200, { "Content-Type": "application/json" });
 });
-app.get("/api/*", (c) => c.json({ error: "Không tìm thấy chức năng." }, 404));
+app.get("/api/*", (c) => c.json({ error: "Không tìm thấy yêu cầu này." }, 404));
 app.all("/:slug", async (c) => {
   if (!["GET", "HEAD"].includes(c.req.method))
     return c.text("Phương thức không hỗ trợ.", 405);

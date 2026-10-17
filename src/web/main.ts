@@ -58,6 +58,21 @@ const localDate = (n: number | null) =>
         .toISOString()
         .slice(0, 16)
     : "";
+const linkStatus = (status: string) =>
+  ({ active: "Đang hoạt động", blocked: "Đã khóa", expired: "Hết hạn", deleted: "Đã xóa" })[
+    status
+  ] ?? status;
+const blockKind = (kind: string) =>
+  ({ host: "Tên miền", url: "Địa chỉ web" })[kind] ?? kind;
+const adminAction = (action: string) =>
+  ({
+    policy: "Đổi cấu hình",
+    block_link: "Khóa link",
+    block_user: "Đổi trạng thái tài khoản",
+    block_user_links: "Khóa link của tài khoản",
+    add_block: "Thêm địa chỉ bị chặn",
+    remove_block: "Gỡ địa chỉ bị chặn",
+  })[action] ?? action;
 let me: Me = { user: null, admin: false, csrf: null };
 async function api<T = any>(
   path: string,
@@ -88,7 +103,9 @@ async function copy(
     message(
       errorSelector ??
         ($("#link-list") ? "#dashboard-notice" : "#form-message"),
-      "Chưa sao chép được. Hãy thử lại.",
+      errorSelector === "#report-message"
+        ? "Không sao chép được. Hãy chọn và sao chép địa chỉ email trên trang."
+        : "Không sao chép được. Hãy chọn và sao chép link thủ công.",
       true,
     );
   }
@@ -179,7 +196,7 @@ async function home() {
       return false;
     }
     if (!form.checkValidity()) {
-      message("#form-message", "Kiểm tra lại các trường tùy chỉnh.", true);
+      message("#form-message", "Kiểm tra mã link và ngày hết hạn rồi thử lại.", true);
       form.querySelector<HTMLElement>(":invalid")?.focus();
       return false;
     }
@@ -235,7 +252,7 @@ async function home() {
         finish(
           typeof window.turnstile?.render === "function"
             ? undefined
-            : new Error("Chưa khởi tạo được xác minh. Vui lòng thử lại."),
+            : new Error("Không mở được xác minh. Hãy thử lại."),
         );
       script.onerror = () =>
         finish(
@@ -327,7 +344,7 @@ async function home() {
     message(
       "#service-notice",
       !config.createEnabled
-        ? "Dịch vụ đang tạm ngừng tạo link mới để bảo vệ tài nguyên. Vui lòng quay lại sau."
+        ? "Tạm ngừng tạo link mới. Hãy quay lại sau."
         : "Tạm ngừng tạo link khách. Bạn có thể đăng nhập để thử lại.",
     );
     form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled =
@@ -335,7 +352,7 @@ async function home() {
   } else if (!config.siteKey) {
     message(
       "#service-notice",
-      "Hệ thống đang được chuẩn bị. Tạo link sẽ mở khi xác minh an toàn sẵn sàng.",
+      "Chưa thể tạo link vì chức năng xác minh chưa sẵn sàng. Hãy quay lại sau.",
     );
     form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled =
       true;
@@ -347,7 +364,7 @@ async function home() {
   if (new URLSearchParams(location.search).has("error"))
     message(
       "#form-message",
-      "Đăng nhập chưa thành công. Vui lòng thử lại hoặc liên hệ hi@oh.io.vn.",
+      "Không đăng nhập được. Hãy thử lại. Nếu vẫn gặp lỗi, liên hệ hi@oh.io.vn.",
       true,
     );
   form.addEventListener("submit", async (event) => {
@@ -386,7 +403,7 @@ async function home() {
       link.textContent = result.url;
       resultBox.hidden = false;
       $("#result-expiry").textContent =
-        `Hết hạn ${date(result.expires_at)}.${me.user ? "" : " Lưu lại link để sử dụng."}`;
+        `Hết hạn ${date(result.expires_at)}.${me.user ? "" : " Hãy sao chép và lưu link này; bạn sẽ không tìm lại được sau khi rời trang."}`;
       $("#copy-result").onclick = () =>
         copy(result.url, $<HTMLButtonElement>("#copy-result"));
       resultBox.focus({ preventScroll: true });
@@ -420,7 +437,7 @@ let listRequest = 0;
 let expiryHold = false;
 function card(l: LinkData) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link đã tạo")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn · ${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Dữ liệu đã được dọn")}</div><div class="link-meta">Hết hạn ${date(l.expires_at)}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
+  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link không có tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn · ${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">Hết hạn ${date(l.expires_at)}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
 }
 async function loadLinks(append = false) {
   const more = $<HTMLButtonElement>("#load-more");
@@ -441,12 +458,12 @@ async function loadLinks(append = false) {
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
       : q.trim()
-        ? '<div class="empty"><h2>Không tìm thấy link</h2><p>Thử tên hoặc đường dẫn khác để tìm lại.</p></div>'
-        : '<div class="empty"><h2>Chưa có đường dẫn nào</h2><p>Tạo link đầu tiên để quản lý và xem thống kê tại đây.</p><a class="secondary" href="/">Tạo link đầu tiên</a></div>';
+        ? '<div class="empty"><h2>Không tìm thấy link</h2><p>Thử tìm theo tên hoặc mã link khác.</p></div>'
+        : '<div class="empty"><h2>Chưa có link nào</h2><p>Tạo link để xem và quản lý tại đây.</p><a class="secondary" href="/">Tạo link đầu tiên</a></div>';
     message(
       "#dashboard-notice",
       expiryHold
-        ? "Hệ thống đang bảo vệ thời hạn link trong thời gian kiểm tra dữ liệu truy cập. Hạn cố định vẫn được áp dụng."
+        ? "Tạm dừng tính hạn không hoạt động trong lúc kiểm tra số liệu truy cập. Ngày hết hạn cố định vẫn giữ nguyên."
         : "",
     );
   } catch (e) {
@@ -454,7 +471,7 @@ async function loadLinks(append = false) {
       message("#dashboard-notice", (e as Error).message, true);
       if (!append && !links.length) {
         $("#link-list").innerHTML =
-          '<div class="empty" role="status"><h2>Chưa tải được đường dẫn</h2><p>Kiểm tra kết nối rồi thử lại.</p><button id="retry-links" class="secondary" type="button">Tải lại danh sách</button></div>';
+          '<div class="empty" role="status"><h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại danh sách.</p><button id="retry-links" class="secondary" type="button">Tải lại danh sách</button></div>';
         $("#retry-links").addEventListener("click", () => void loadLinks());
       }
     }
@@ -466,7 +483,7 @@ async function dashboard() {
   if (!$("#link-list")) return;
   if (!me.user) {
     $("#link-list").innerHTML =
-      '<div class="empty"><h2>Đường dẫn của bạn, ở một nơi</h2><p>Đăng nhập để quản lý link, chỉnh sửa và xem thống kê.</p><a class="primary" href="/auth/login">Đăng nhập Google</a></div>';
+      '<div class="empty"><h2>Đăng nhập để quản lý link</h2><p>Bạn có thể sửa link đã tạo bằng tài khoản và xem thống kê.</p><a class="primary" href="/auth/login">Đăng nhập Google</a></div>';
     $(".toolbar").hidden = true;
     return;
   }
@@ -622,7 +639,7 @@ async function dashboard() {
     } catch {
       message(
         "#stats-message",
-        "Chưa xuất được Excel. Vui lòng thử lại.",
+        "Không xuất được Excel. Hãy thử lại.",
         true,
       );
     } finally {
@@ -649,14 +666,14 @@ function renderStats(data: Stats) {
   const days = groups("day").sort(([a], [b]) => a.localeCompare(b));
   const max = Math.max(...days.map(([, n]) => n), 1);
   $("#stats-content").innerHTML =
-    `<p class="small">${esc(selected!.slug)} · Từ ${data.since}</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Có khoảng thiếu dữ liệu. Tổng chỉ phản ánh lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${esc(days[0][0])}</span><span>${esc(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nhóm nguồn</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days)}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Về số liệu</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">${esc(selected!.slug)} · Từ ${data.since}</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${esc(days[0][0])}</span><span>${esc(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days)}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 async function admin() {
   if (!$("#admin-content")) return;
   if (!me.admin) {
     message(
       "#admin-message",
-      "Chỉ tài khoản quản trị được cấu hình mới có thể truy cập.",
+      "Bạn cần đăng nhập bằng tài khoản quản trị để xem trang này.",
       true,
     );
     return;
@@ -673,15 +690,15 @@ async function admin() {
       }
     });
     let usage =
-      '<p class="small">Chưa có số liệu giám sát. Tạo link sẽ chờ đến khi có số liệu hợp lệ.</p>';
+      '<p class="small">Chưa có số liệu sử dụng. Hãy kiểm tra kết nối giám sát.</p>';
     try {
       const m = JSON.parse(data.policy.monitoring);
       if (m) {
         const resources: [string, number, number][] = [
           ["Yêu cầu hôm nay", m.requests, 100000],
-          ["Hàng đã đọc", m.reads, 5000000],
-          ["Hàng đã ghi", m.writes, 100000],
-          ["Dung lượng dữ liệu tính bằng byte", m.databaseBytes, 500000000],
+          ["Dòng dữ liệu đã đọc", m.reads, 5000000],
+          ["Dòng dữ liệu đã ghi", m.writes, 100000],
+          ["Dung lượng cơ sở dữ liệu (byte)", m.databaseBytes, 500000000],
         ];
         usage =
           resources
@@ -690,18 +707,18 @@ async function admin() {
                 `<div class="stat-row"><span>${name}</span><strong>${Number(value).toLocaleString("vi-VN")} trên ${limit.toLocaleString("vi-VN")} (${((value / limit) * 100).toFixed(1)}%)</strong></div>`,
             )
             .join("") +
-          `<p class="small">Số liệu lúc ${date(m.at)}. Bộ đếm theo giờ quốc tế và có độ trễ. Mức giảm tải tự động: ${m.level || "bình thường"}.</p>`;
+          `<p class="small">Cập nhật lúc ${date(m.at)}. Bộ đếm tính theo giờ UTC và có thể cập nhật chậm. Chế độ bảo vệ tài nguyên: ${m.level ? `mức ${m.level}` : "bình thường"}.</p>`;
       }
     } catch {
       /* Missing or incomplete snapshots are shown explicitly. */
     }
     $("#usage").innerHTML =
-      `<p class="small">Bảo trì gần nhất: ${data.policy.heartbeat ? date(data.policy.heartbeat) : "chưa có"}<br>Sao lưu đã tải lên: ${data.policy.last_backup_at ? date(data.policy.last_backup_at) : "chưa có"}</p>${usage}${data.links.map((r: any) => `<div class="stat-row"><span>Link ${esc(r.status)}</span><strong>${r.count}</strong></div>`).join("")}`;
+      `<p class="small">Tác vụ định kỳ chạy gần nhất: ${data.policy.heartbeat ? date(data.policy.heartbeat) : "chưa có"}<br>Sao lưu đã tải lên: ${data.policy.last_backup_at ? date(data.policy.last_backup_at) : "chưa có"}</p>${usage}${data.links.map((r: any) => `<div class="stat-row"><span>${esc(linkStatus(r.status))}</span><strong>${r.count}</strong></div>`).join("")}`;
     $("#audit").innerHTML =
       data.audit
         .map(
           (r: any) =>
-            `<div class="stat-row"><span>${esc(r.action)} · ${esc(r.subject)}</span><span>${date(r.created_at)}</span></div>`,
+            `<div class="stat-row"><span>${esc(adminAction(r.action))} · ${esc(r.subject)}</span><span>${date(r.created_at)}</span></div>`,
         )
         .join("") || '<p class="small">Chưa có thao tác.</p>';
     const blocked = await api("/api/admin/blocklist");
@@ -709,7 +726,7 @@ async function admin() {
       blocked
         .map(
           (b: any) =>
-            `<div class="stat-row"><span>${esc(b.kind)} · ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
+            `<div class="stat-row"><span>${esc(blockKind(b.kind))} · ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
         )
         .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
@@ -720,7 +737,7 @@ async function admin() {
         method: "POST",
         body: JSON.stringify(body),
       });
-      message("#admin-message", "Đã cập nhật.");
+      message("#admin-message", "Đã lưu thay đổi.");
       await refresh();
     } catch (e) {
       message("#admin-message", (e as Error).message, true);
@@ -770,15 +787,15 @@ async function admin() {
         r.users
           .map(
             (u: any) =>
-              `<div class="panel"><p>${esc(u.email)} · ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}">Khóa riêng toàn bộ link của tài khoản</button></div>`,
+              `<div class="panel"><p>${esc(u.email)} · ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}">Khóa tất cả link của tài khoản</button></div>`,
           )
           .join("") +
           r.links
             .map(
               (l: any) =>
-                `<div class="link-card"><div><strong>${esc(l.slug)} · ${esc(l.status)}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
+                `<div class="link-card"><div><strong>${esc(l.slug)} · ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
             )
-            .join("") || '<p class="small">Không tìm thấy.</p>';
+            .join("") || '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';
     } catch (e) {
       message("#admin-message", (e as Error).message, true);
     }
@@ -810,7 +827,7 @@ try {
   ["#global-notice"].forEach((s) =>
     message(
       s,
-      "Chưa kết nối được dịch vụ. Vui lòng tải lại trang sau ít phút.",
+      "Không kết nối được dịch vụ. Hãy tải lại trang sau ít phút.",
       true,
     ),
   );
@@ -820,7 +837,7 @@ try {
   );
   if (submit) submit.disabled = true;
   const list = document.querySelector<HTMLElement>("#link-list");
-  if (list && list.textContent?.includes("Đang tải đường dẫn"))
+  if (list && list.textContent?.includes("Đang tải link"))
     list.innerHTML =
-      '<div class="empty" role="status"><h2>Chưa tải được đường dẫn</h2><p>Kiểm tra kết nối rồi thử lại.</p></div>';
+      '<div class="empty" role="status"><h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại trang.</p></div>';
 }

@@ -46,7 +46,7 @@ describe("Thông báo API trên giao diện", () => {
         new Response("<html>Error</html>", { status }),
       );
       await expect(requestJson("/api/example")).rejects.toThrow(
-        status === 429 ? "thao tác quá nhanh" : "Dịch vụ đang bận",
+        status === 429 ? "quá nhiều yêu cầu" : "Dịch vụ đang bận",
       );
     },
   );

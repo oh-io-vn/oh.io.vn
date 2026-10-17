@@ -18,7 +18,7 @@ export async function requestJson<T>(
     });
   } catch {
     throw new Error(
-      "Chưa kết nối được dịch vụ. Hãy kiểm tra mạng rồi thử lại.",
+      "Không kết nối được dịch vụ. Hãy kiểm tra mạng rồi thử lại.",
     );
   }
   let data: unknown;
@@ -27,15 +27,15 @@ export async function requestJson<T>(
   } catch {
     if (response.status === 429)
       throw new Error(
-        "Bạn đang thao tác quá nhanh. Vui lòng chờ một lát rồi thử lại.",
+        "Bạn đã gửi quá nhiều yêu cầu. Hãy chờ một phút rồi thử lại.",
       );
-    throw new Error("Dịch vụ đang bận. Vui lòng thử lại sau ít phút.");
+    throw new Error("Dịch vụ đang bận. Hãy thử lại sau ít phút.");
   }
   if (!response.ok) {
     const error =
       data && typeof data === "object" && "error" in data ? data.error : null;
     throw new Error(
-      typeof error === "string" ? error : "Có lỗi xảy ra. Vui lòng thử lại.",
+      typeof error === "string" ? error : "Không hoàn tất được thao tác. Hãy thử lại.",
     );
   }
   return data as T;
