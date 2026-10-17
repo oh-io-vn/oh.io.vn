@@ -1,0 +1,29 @@
+# Local secrets and credentials
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+*.pem
+*.key
+
+# Runtime, backups and local verification
+.local/
+.wrangler/
+backups/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.log
+
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+test-results/
+playwright-report/
+
+# OS files
+.DS_Store
+Thumbs.db
