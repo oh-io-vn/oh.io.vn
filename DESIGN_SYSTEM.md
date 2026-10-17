@@ -68,6 +68,15 @@ palette, icon and list structure are deliberate choices, not defects to remove.
   states. Dialogs retain native focus handling, Escape and close controls.
 - Charts show real API data only. Tables use subdued headers, consistent padding
   and visible row boundaries. Legal content uses a readable line length.
+- Daily charts use a fixed 30-day calendar window from the API's `since` date.
+  Unrecorded days have zero height; a single recorded day stays one narrow bar.
+  Keep a numeric scale, date range, daily values and missing-data warnings.
+- Long dialog bodies scroll independently of the header using `.scroll-dialog`
+  and `.dialog-body`. Never overlay a sticky header inside padded scrolling content.
+- Admin limit fields align their inputs at the bottom of each grid row. Use
+  balanced wrapping for introductory paragraphs and avoid hardcoded line breaks.
+- Select controls reserve room for the arrow. Use native `base-select` styling
+  progressively for the picker, with an ordinary native picker as the fallback.
 - At 680px, forms, link rows, statistics and admin sections become one column.
   At 420px, navigation wraps deliberately. Support 320px width and short screens.
 

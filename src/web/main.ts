@@ -3,6 +3,7 @@ import { VerificationGate } from "./verification";
 import { requestJson } from "./request";
 import { canEditLink } from "./link-state";
 import { copyText } from "./clipboard";
+import { dailySeries } from "./stats-chart";
 type LinkData = {
   slug: string;
   label: string | null;
@@ -629,7 +630,12 @@ async function dashboard() {
         $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
         renderStats(stats);
         message("#stats-message", "");
+        // A disabled opener loses focus while loading. Restore it before the
+        // native dialog captures where focus should return on close.
+        b.disabled = false;
+        b.focus({ preventScroll: true });
         $<HTMLDialogElement>("#stats-dialog").showModal();
+        $("#stats-dialog .dialog-body").scrollTop = 0;
       } catch (e) {
         if (request === detailRequest)
           message("#dashboard-notice", (e as Error).message, true);
@@ -771,7 +777,7 @@ async function dashboard() {
 }
 function renderStats(data: Stats) {
   const total = data.rows.reduce((n, r) => n + r.clicks, 0);
-  const groups = (key: "source" | "device" | "day") => {
+  const groups = (key: "source" | "device") => {
     const map = new Map<string, number>();
     data.rows.forEach((r) =>
       map.set(r[key], (map.get(r[key]) ?? 0) + r.clicks),
@@ -785,10 +791,14 @@ function renderStats(data: Stats) {
           `<div class="stat-row"><span>${esc(k)}</span><strong>${v}</strong></div>`,
       )
       .join("");
-  const days = groups("day").sort(([a], [b]) => a.localeCompare(b));
+  const days = dailySeries(data.rows, data.since);
   const max = Math.max(...days.map(([, n]) => n), 1);
+  const chart = `<figure class="daily-chart"><figcaption class="small">Lượt ghi nhận mỗi ngày</figcaption>
+    <div class="chart-frame" aria-hidden="true"><div class="chart-scale small"><span>${max.toLocaleString("vi-VN")}</span><span>0</span></div>
+    <div class="chart">${days.map(([day, n]) => `<span class="chart-bar" title="${calendarDate(day)}: ${n} lượt" style="height:${(n / max) * 100}%"></span>`).join("")}</div></div>
+    <div class="chart-axis small"><time datetime="${days[0][0]}">${days[0][0].split("-").reverse().join("/")}</time><time datetime="${days[29][0]}">${days[29][0].split("-").reverse().join("/")}</time></div></figure>`;
   $("#stats-content").innerHTML =
-    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${calendarDate(days[0][0])}</span><span>${calendarDate(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 async function admin() {
   if (!$("#admin-content")) return;

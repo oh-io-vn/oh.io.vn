@@ -44,6 +44,13 @@
   Xác nhận trước thao tác khóa, xóa hoặc thay đổi danh sách chặn.
 - Dùng native `dialog`, giữ Escape, focus trong hộp thoại và trả focus hợp lý khi
   đóng. Nếu danh sách được render lại, chuyển focus tới phần tử còn tồn tại.
+- Hộp thoại có tiêu đề dùng `.scroll-dialog` và `.dialog-body`: tiêu đề nằm ngoài
+  vùng cuộn. Không đặt tiêu đề sticky giữa nội dung để tránh chữ lọt phía trên.
+- Căn đáy các ô nhập cùng hàng dù nhãn xuống dòng. Select giữ ngữ nghĩa native;
+  style menu bằng `base-select` khi được hỗ trợ và giữ fallback cho trình duyệt cũ.
+- Biểu đồ lượt truy cập dùng đủ 30 ngày từ `since` của API, giữ các ngày không có
+  lượt ghi nhận và cảnh báo dữ liệu thiếu. Luôn thử trường hợp chỉ một ngày có số
+  liệu; không để một cột giãn hết chiều ngang.
 - Giữ navigation nhất quán. Tìm kiếm có nhãn, trạng thái kết quả và cách xóa lọc.
 - Kiểm tra trạng thái trống, lỗi, đang tải, URL dài và tên dài. Không thêm bước
   không cần thiết vào luồng tạo link.

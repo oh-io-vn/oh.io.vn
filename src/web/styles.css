@@ -321,6 +321,61 @@ textarea::placeholder {
   color: var(--muted);
   opacity: 1;
 }
+select {
+  appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2361656e' stroke-width='1.8'%3E%3Cpath d='m5 7.5 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 20px;
+  cursor: pointer;
+}
+/* Keep native semantics and the OS picker in browsers without base-select. */
+@supports (appearance: base-select) {
+  select,
+  select::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    background-image: none;
+    padding-right: 14px;
+    gap: var(--space-3);
+    align-items: center;
+  }
+  select::picker-icon {
+    color: var(--muted);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+  select::picker(select) {
+    border: 1px solid var(--control-line);
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--text);
+    padding: var(--space-1);
+    margin-block: var(--space-1);
+    box-shadow: 0 8px 24px #20212414;
+  }
+  select option {
+    min-height: 44px;
+    padding: 10px 12px;
+    gap: var(--space-2);
+    border-radius: 4px;
+    white-space: normal;
+  }
+  select option:checked {
+    background: var(--blue-soft);
+    color: var(--blue-hover);
+    font-weight: 500;
+  }
+  select option:hover,
+  select option:focus-visible {
+    background: var(--soft);
+    color: var(--text);
+    outline: 2px solid var(--blue);
+    outline-offset: -2px;
+  }
+}
 input:hover,
 select:hover,
 textarea:hover {
@@ -892,6 +947,7 @@ dialog {
   padding-bottom: var(--space-8);
   margin-bottom: var(--space-8);
   border-bottom: 1px solid var(--line);
+  text-wrap: balance;
 }
 .prose ul {
   padding-left: 22px;
@@ -940,10 +996,7 @@ dialog h2 {
   justify-content: space-between;
   align-items: center;
   gap: var(--space-4);
-  position: sticky;
-  top: -1px;
   background: var(--surface);
-  z-index: 1;
   padding-block: var(--space-1);
 }
 .dialog-top h2 {
@@ -964,6 +1017,33 @@ dialog h2 {
   gap: var(--space-3);
   justify-content: end;
   margin-top: var(--space-6);
+}
+/* The header occupies its own row. Only the body scrolls, never behind it. */
+.scroll-dialog {
+  --dialog-gutter: var(--space-8);
+  padding: 0;
+  overflow: hidden;
+}
+.scroll-dialog[open] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.scroll-dialog .dialog-top {
+  padding: var(--space-4) var(--dialog-gutter);
+  border-bottom: 1px solid var(--line);
+}
+.scroll-dialog .dialog-body {
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-6) var(--dialog-gutter);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #b9bdc5 transparent;
+}
+.dialog-body > :last-child {
+  margin-bottom: 0;
 }
 #donate-dialog {
   max-width: min(440px, calc(100vw - 32px));
@@ -1022,26 +1102,44 @@ dialog h2 {
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
-.chart {
-  height: 120px;
+.daily-chart {
+  margin: var(--space-6) 0;
+}
+.daily-chart figcaption {
+  margin-bottom: var(--space-4);
+}
+.chart-frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+}
+.chart-scale {
   display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.chart {
+  height: 128px;
+  display: grid;
+  grid-template-columns: repeat(30, minmax(0, 1fr));
   align-items: end;
-  gap: 4px;
-  margin: var(--space-6) 0 0;
-  border-bottom: 1px solid var(--line);
-  padding-top: var(--space-2);
+  justify-items: center;
+  gap: 3px;
+  border-block: 1px solid var(--line);
 }
 .chart-axis {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  margin-top: var(--space-2);
   font-variant-numeric: tabular-nums;
 }
-.chart span {
+.chart-bar {
   background: var(--blue);
-  flex: 1;
-  min-height: 2px;
+  width: 100%;
+  max-width: 20px;
   border-radius: 3px 3px 0 0;
 }
 .admin-grid {
@@ -1061,6 +1159,22 @@ dialog h2 {
   margin: 0 0 var(--space-6);
   font-size: 1.125rem;
 }
+.usage-panel {
+  display: flex;
+  flex-direction: column;
+}
+.cloudflare-actions {
+  margin-top: auto;
+  padding-top: var(--space-6);
+}
+.cloudflare-actions p {
+  margin-bottom: var(--space-3);
+}
+.cloudflare-actions svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
 .toggle {
   display: flex;
   justify-content: space-between;
@@ -1076,6 +1190,15 @@ dialog h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
   margin-top: var(--space-6);
+}
+.limits label {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  gap: var(--space-2);
+  text-wrap: pretty;
+}
+.limits input {
+  margin-top: 0;
 }
 .toolbar-field {
   flex: 1 1 240px;
@@ -1287,6 +1410,10 @@ td {
   }
   dialog {
     padding: var(--space-6);
+  }
+  .scroll-dialog {
+    --dialog-gutter: var(--space-6);
+    padding: 0;
   }
   .dialog-actions {
     flex-wrap: wrap;

@@ -37,6 +37,14 @@ try {
     searchWithUser = false;
   let blocks = [],
     lastAction = null;
+  let statsRows = Array.from({ length: 14 }, (_, i) => ({
+    day: `2026-10-${String(i + 1).padStart(2, "0")}`,
+    source: i % 2 ? "Google" : "Không xác định",
+    device: i % 3 ? "Máy tính" : "Điện thoại",
+    clicks: 20 + ((i * 17) % 64),
+  }));
+  let statsEnabled = true,
+    statsGaps = [];
   const now = Date.now();
   const rows = [
     {
@@ -168,14 +176,9 @@ try {
     if (path.endsWith("/stats"))
       return json({
         since: "2026-09-18",
-        enabled: true,
-        gaps: [],
-        rows: Array.from({ length: 14 }, (_, i) => ({
-          day: `2026-10-${String(i + 1).padStart(2, "0")}`,
-          source: i % 2 ? "Google" : "Không xác định",
-          device: i % 3 ? "Máy tính" : "Điện thoại",
-          clicks: 20 + ((i * 17) % 64),
-        })),
+        enabled: statsEnabled,
+        gaps: statsGaps,
+        rows: statsRows,
       });
     if (path === "/api/admin/overview") {
       if (overviewDelay)
@@ -422,6 +425,141 @@ try {
   await download.saveAs(`${out}/${download.suggestedFilename()}`);
   assert(download.suggestedFilename().endsWith(".xlsx"));
   await page.keyboard.press("Escape");
+  // Sparse statistics must preserve calendar spacing and never stretch one bar.
+  const regularStatsRows = statsRows;
+  statsRows = [
+    { day: "2026-10-17", source: "Zalo", device: "Điện thoại", clicks: 1 },
+    { day: "2026-10-17", source: "Khác", device: "Máy tính", clicks: 1 },
+  ];
+  for (const [width, height] of [
+    [1440, 690],
+    [768, 900],
+    [390, 844],
+    [320, 390],
+  ]) {
+    await page.setViewportSize({ width, height });
+    const trigger = page.locator('[data-action="stats"]').first();
+    await trigger.click();
+    await page.waitForSelector("#stats-dialog[open]");
+    assert.equal(await page.locator(".chart-bar").count(), 30);
+    assert.equal(
+      await page.locator(".chart-axis time").first().textContent(),
+      "18/09/2026",
+    );
+    assert.equal(
+      await page.locator(".chart-axis time").last().textContent(),
+      "17/10/2026",
+    );
+    const chartGeometry = await page.locator(".chart").evaluate((el) => {
+      const bars = [...el.children].map((bar) => bar.getBoundingClientRect());
+      return {
+        width: el.clientWidth,
+        positive: bars.filter((bar) => bar.height > 0).map((bar) => bar.width),
+      };
+    });
+    assert.equal(chartGeometry.positive.length, 1);
+    assert(
+      chartGeometry.positive[0] <= chartGeometry.width / 20,
+      "One day must not fill the plot",
+    );
+    measurements.push(await measure(`single-day-stats-${width}`));
+    await page.screenshot({ path: `${out}/stats-single-day-${width}.png` });
+    const header = page.locator("#stats-dialog .dialog-top");
+    const body = page.locator("#stats-dialog .dialog-body");
+    const before = await header.boundingBox();
+    await page.getByText("Xem số liệu từng ngày", { exact: true }).click();
+    assert.equal(
+      await page.locator("#stats-content details[open] .stat-row").count(),
+      30,
+    );
+    await body.evaluate((el) => (el.scrollTop = 180));
+    const after = await header.boundingBox();
+    assert.deepEqual(
+      after,
+      before,
+      "Dialog heading must stay in its own fixed row",
+    );
+    const boundaries = await body.evaluate((el) => {
+      const rect = el.getBoundingClientRect();
+      const top = el.previousElementSibling.getBoundingClientRect();
+      const hit = document.elementFromPoint(
+        top.left + top.width / 2,
+        top.top + top.height / 2,
+      );
+      return {
+        separated: rect.top >= top.bottom,
+        headerHit: el.previousElementSibling.contains(hit),
+        scrolled: el.scrollTop,
+        outerScroll: el.parentElement.scrollTop,
+        width: el.clientWidth,
+        scrollWidth: el.scrollWidth,
+      };
+    });
+    assert(
+      boundaries.separated && boundaries.headerHit && boundaries.scrolled > 0,
+    );
+    assert.equal(boundaries.outerScroll, 0);
+    assert(boundaries.scrollWidth <= boundaries.width);
+    await page.screenshot({ path: `${out}/stats-scrolled-${width}.png` });
+    // Keyboard focus can reach the export action and returns to the opener.
+    await page.locator("#stats-dialog [data-close]").focus();
+    for (
+      let i = 0;
+      i < 5 &&
+      (await page.locator(":focus").getAttribute("id")) !== "export-excel";
+      i++
+    )
+      await page.keyboard.press("Tab");
+    assert.equal(
+      await page.locator(":focus").getAttribute("id"),
+      "export-excel",
+    );
+    const exportBox = await page.locator("#export-excel").boundingBox();
+    const bodyBox = await body.boundingBox();
+    assert(
+      exportBox.y >= bodyBox.y &&
+        exportBox.y + exportBox.height <= bodyBox.y + bodyBox.height + 1,
+    );
+    await page.keyboard.press("Escape");
+    assert.equal(
+      await page.locator(":focus").getAttribute("data-action"),
+      "stats",
+    );
+    await trigger.click();
+    await page.waitForSelector("#stats-dialog[open]");
+    assert.equal(
+      await body.evaluate((el) => el.scrollTop),
+      0,
+      "Reopening statistics starts at the top",
+    );
+    await page.keyboard.press("Escape");
+  }
+  statsRows = [];
+  statsEnabled = false;
+  statsGaps = [
+    {
+      started_at: now - 86400000,
+      ended_at: null,
+      reason: "Tạm dừng ghi thống kê",
+    },
+  ];
+  await page.locator('[data-action="stats"]').first().click();
+  await page.waitForSelector("#stats-dialog[open]");
+  assert.equal(await page.locator(".chart").count(), 0);
+  assert(
+    (await page.locator("#stats-content").textContent()).includes(
+      "Chưa có lượt truy cập.",
+    ),
+  );
+  assert(
+    (await page.locator("#stats-content .notice").textContent()).includes(
+      "Thống kê có thời gian bị thiếu.",
+    ),
+  );
+  await page.keyboard.press("Escape");
+  statsRows = regularStatsRows;
+  statsEnabled = true;
+  statsGaps = [];
   await page.locator('[data-action="delete"]').first().click();
   await page.locator("#delete-dialog [data-close]").click();
   assert.equal(deleteCount, 0);
@@ -443,6 +581,29 @@ try {
   empty = false;
   // Admin forms retain API behavior, using fixtures only.
   await goto("/admin/");
+  for (const width of [1440, 1024, 768]) {
+    await page.setViewportSize({ width, height: 900 });
+    const tops = await page
+      .locator(".limits input")
+      .evaluateAll((inputs) =>
+        inputs.map((el) => el.getBoundingClientRect().top),
+      );
+    assert(
+      Math.abs(tops[0] - tops[1]) < 1 && Math.abs(tops[2] - tops[3]) < 1,
+      "Paired inputs align even when a label wraps",
+    );
+  }
+  const blockSelect = page.locator("#block-form select");
+  await blockSelect.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
+  assert.equal(await blockSelect.inputValue(), "url");
+  await blockSelect.click();
+  await page.screenshot({ path: `${out}/admin-picker-open.png` });
+  await page.getByRole("option", { name: "Tên miền và tên miền con" }).click();
+  assert.equal(await blockSelect.inputValue(), "host");
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.locator('#policy-form button[type="submit"]').click();
   await page.waitForFunction(
     () =>
@@ -874,6 +1035,10 @@ try {
           "successful save followed by refresh failure",
           "actual internal link navigation and report email clipboard",
           "computed CSS token contrast pairs",
+          "single-day chart, 30 calendar days, zero state and missing-data warning",
+          "independent dialog header/body scrolling, export keyboard access and reopen reset",
+          "wrapped admin labels keep paired inputs aligned",
+          "styled block type picker keyboard and pointer selection",
         ],
         environment:
           "Chrome headless, built app on local Wrangler, API and Turnstile fixtures for account states. No production mutations.",
