@@ -2,7 +2,8 @@
 
 ## Trạng thái mở thử
 
-Mã ứng dụng đã được triển khai và kiểm thử local. Việc đưa lên Cloudflare còn chờ xác minh email tài khoản; chưa coi các bài kiểm thử local là bằng chứng chạy trên domain thật. Xem trạng thái thực tế trong [SETUP.md](SETUP.md).
+Dịch vụ đang mở thử tại https://oh.io.vn trên Cloudflare Free. Xem các mốc
+thiết lập và kiểm chứng production trong [SETUP.md](SETUP.md).
 
 Stack: TypeScript, Hono, Vite, Workers Static Assets, D1, Turnstile Managed. Một Durable Object SQLite nhỏ giữ cờ sự cố độc lập với D1. Không bật gói trả phí.
 
@@ -71,7 +72,35 @@ npm run deploy
 
 Custom domain được khai báo trong `wrangler.jsonc`. Giữ nguyên MX/TXT Email Routing. Kiểm tra TLS, `/api/config`, đăng nhập Google, guest/member creation, 302 và thao tác quản lý trên domain thật. Chỉ mở `create_enabled=1` sau khi backup riêng tư và giám sát đã chạy thành công; bỏ hoãn hết hạn ban đầu theo quy trình khôi phục bên dưới.
 
-Không tự triển khai từ pull request không tin cậy. Workflow công khai chạy kiểm tra, không có deploy credentials. Triển khai thủ công bằng Wrangler của chủ dự án.
+### Tự động deploy từ GitHub Actions
+
+Workflow `.github/workflows/ci.yml` chạy kiểm tra cho push và pull request.
+Khi push vào `main`, job `deploy` chỉ chạy sau khi job `verify` đạt typecheck,
+test và build. Pull request, nhánh khác hoặc CI thất bại không được deploy.
+
+Frontend được chuyển từ job kiểm tra sang job deploy bằng artifact gắn với
+commit SHA; Worker được đóng gói từ chính commit đó. Các lượt deploy chạy tuần
+tự, không hủy lượt đang phát hành. Trước deploy, workflow bỏ qua commit đã bị
+commit mới hơn trên `main` thay thế để tránh phát hành bản cũ sau bản mới.
+
+GitHub environment `production` chỉ cho phép branch `main`, gồm:
+
+- Secret `CLOUDFLARE_API_TOKEN`: token riêng cho triển khai Worker hiện có.
+- Variable `CLOUDFLARE_ACCOUNT_ID`: tài khoản Cloudflare của dự án.
+
+Token chỉ được đưa vào bước `wrangler deploy`, không cấp cho job kiểm tra hay
+bước cài dependency. Không lưu token trong mã nguồn, artifact hoặc log. Khi xoay
+token, cập nhật secret trong environment này trước khi thu hồi token cũ.
+
+Sau deploy, `scripts/verify-deployment.mjs` đối chiếu `/deployment.json` với commit
+SHA, kiểm tra bảy trang, CSP, SHA-256 của assets trang chủ và `/api/config`.
+Nếu edge chưa cập nhật, thử lại tối đa sáu lần. Lỗi kiểm tra làm job deploy báo
+thất bại; không tự rollback hoặc sửa dữ liệu. Xem version có message chứa SHA
+trong Cloudflare và mục Rollback bên dưới khi cần xử lý.
+
+Luồng này không tự áp migration D1 hoặc thay secrets ứng dụng. Khi đổi schema,
+chuẩn bị migration tương thích trước khi push vào `main`. Lệnh deploy thủ công
+ở trên chỉ dùng khi cần xử lý riêng; tránh chạy đồng thời với GitHub Actions.
 
 ### CSP và Cloudflare Web Analytics
 

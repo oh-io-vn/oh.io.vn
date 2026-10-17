@@ -10,6 +10,10 @@
   Không sửa riêng các file HTML được sinh tự động.
 - Kiểm tra `git status` trước khi sửa và giữ nguyên thay đổi của người dùng.
   Không tự commit, push hoặc deploy.
+- Push vào `main` sẽ tự deploy lên production sau khi GitHub Actions kiểm tra
+  thành công. Chỉ push khi người dùng cho phép; không chạy deploy thủ công song
+  song với workflow. Giữ điều kiện push/main, `needs: verify`, khóa concurrency
+  và environment `production` khi sửa CI. Không cấp token deploy cho pull request.
 - Giữ ID DOM, tên trường, API, quyền truy cập, xác thực, CSRF, quy tắc hạn mức
   và thời hạn link. Khi bổ sung validation phía client, backend vẫn là nơi
   quyết định tính hợp lệ.

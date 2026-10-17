@@ -16,3 +16,67 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Ghi commit của bản phát hành
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          node --input-type=module -e 'import { writeFileSync } from "node:fs"; writeFileSync("dist/deployment.json", JSON.stringify({ commit: process.env.GITHUB_SHA }) + "\n");'
+      - name: Lưu frontend đã kiểm tra
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: web-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 1
+  deploy:
+    name: Deploy oh.io.vn
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production
+      url: https://oh.io.vn
+    concurrency:
+      group: oh-io-vn-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - name: Bỏ qua commit đã có bản mới hơn
+        id: current
+        shell: bash
+        run: |
+          latest="$(git ls-remote origin refs/heads/main | cut -f1)"
+          if [ "$latest" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Bỏ qua commit $GITHUB_SHA vì main đã chuyển sang $latest." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/setup-node@v7.1.0
+        if: steps.current.outputs.deploy == 'true'
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+        if: steps.current.outputs.deploy == 'true'
+      - name: Tải frontend của đúng commit
+        if: steps.current.outputs.deploy == 'true'
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: web-${{ github.sha }}
+          path: dist/
+      - name: Triển khai Cloudflare Worker
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Thiếu secret CLOUDFLARE_API_TOKEN trong environment production."; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Thiếu variable CLOUDFLARE_ACCOUNT_ID trong environment production."; exit 1; }
+          npx wrangler deploy --message "GitHub Actions $GITHUB_SHA"
+      - name: Kiểm tra website sau deploy
+        if: steps.current.outputs.deploy == 'true'
+        run: node scripts/verify-deployment.mjs "$GITHUB_SHA"

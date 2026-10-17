@@ -11,7 +11,7 @@
     "build:web": "node scripts/generate-pages.mjs && vite build",
     "build": "npm run typecheck && npm run build:web && wrangler deploy --dry-run --outdir .local/worker-build",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json",
-    "test": "vitest run && node --test tests/backup.node.test.mjs",
+    "test": "vitest run && node --test tests/*.node.test.mjs",
     "db:local": "wrangler d1 migrations apply oh-io-vn --local",
     "db:remote": "wrangler d1 migrations apply oh-io-vn --remote",
     "deploy": "npm run build && wrangler deploy"
