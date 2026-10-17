@@ -33,6 +33,33 @@
 - Giữ nhãn hiển thị, focus dễ thấy, thứ tự heading đúng, mục tiêu chạm tối thiểu
   44px và tương phản chữ thường tối thiểu 4.5:1. Tôn trọng reduced motion.
 
+## ICON RULES
+
+- Icon giao diện dùng Lucide qua registry `src/web/icons.js`. Import từng icon,
+  không import cả bộ `icons`, không dùng emoji, ký tự đặc biệt hay icon font.
+  Logo oh.io.vn là tài sản thương hiệu riêng, giữ nguyên.
+- Dùng icon cho thao tác cần nhận biết nhanh (sao chép, sửa, thống kê, xóa,
+  tìm kiếm), navigation, phản hồi và điều khiển mở/đóng. Không thêm vào mọi
+  heading, label, số liệu, đoạn văn hoặc liên kết chỉ để trang trí.
+- HTML sinh sẵn và TypeScript dùng chung `icon(name)`. SVG lấy nguyên hình từ
+  Lucide. Không chép lại hoặc tự sửa đường path cho từng trang. CSS mask của
+  select/details được sinh trong `src/web/icon-masks.css` bằng cùng registry.
+- Cỡ mặc định 16px, navigation và nút rút gọn 18px, trạng thái trống 24px.
+  Dùng token `--icon-sm`, `--icon-md`, `--icon-lg`. Các cỡ theo rem để phóng to
+  cùng chữ. Nét 2.25 trên viewBox 24 ở cỡ 16px, nét 2 ở cỡ 18px (đều cho nét
+  hiển thị 1.5px). Trạng thái trống dùng nét 1.75 ở cỡ 24px.
+- Màu dùng `currentColor`. Khoảng icon–chữ 8px, nút danh sách gọn dùng 6px.
+  Dùng flex/grid để căn, giữ icon không co. Không thêm transform để vá căn lề.
+  Đánh giá độ nặng nét và cân bằng với chữ từ screenshot thực tế.
+- Giữ nhãn chữ của thao tác. SVG trang trí có `aria-hidden="true"` và
+  `focusable="false"`. Nếu cần nút chỉ có icon, bắt buộc accessible name rõ
+  nghĩa và vùng bấm ít nhất 44×44px. SVG không tạo thêm điểm Tab.
+- Thay nhãn khi loading bằng `setControlLabel`, giữ icon khi trở lại trạng
+  thái bình thường. Chỉ vòng chờ quay và tôn trọng `prefers-reduced-motion`.
+- Sau thay đổi, chụp và xem 1440/768/390px, thử 320px và chữ 200%. Kiểm tra
+  icon không chạm mép, không làm vỡ hàng nút, đúng màu và tỷ lệ với chữ.
+  Thử click vào chính SVG, bàn phím, loading/success/error và focus hộp thoại.
+
 ## UX RULES
 
 - Nhãn nút phải nói rõ hành động. Hướng dẫn không chen giữa trường chính và nút
@@ -100,7 +127,7 @@
 
 ## Skills
 
-Năm skill thiết kế nằm trong `.agents/skills/`; nguồn và commit nằm trong
+Các skill thiết kế, gồm `iconography`, nằm trong `.agents/skills/`; nguồn và commit nằm trong
 `.agents/skills/SOURCES.md`. Đọc trực tiếp hướng dẫn nếu Codex chưa nhận skill mới.
 Ba skill nội dung đã cài ở cấp người dùng, không cần cài lại. Chỉ chạy script
 bên thứ ba sau khi đọc nội dung; hướng dẫn của project và người dùng có ưu tiên.

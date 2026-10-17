@@ -273,7 +273,46 @@ try {
           scrollHeight: el.scrollHeight,
         }),
       );
-      return { width: d.clientWidth, scroll: d.scrollWidth, dialogs };
+      const iconFailures = [...document.querySelectorAll(".ui-icon")]
+        .filter((icon) => icon.getClientRects().length)
+        .flatMap((icon) => {
+          const failures = [];
+          const box = icon.getBoundingClientRect();
+          const name = icon.getAttribute("data-icon");
+          if (
+            icon.getAttribute("aria-hidden") !== "true" ||
+            icon.getAttribute("focusable") !== "false"
+          )
+            failures.push(`${name}: decorative SVG is exposed to focus/AT`);
+          const control = icon.closest("a, button");
+          if (control) {
+            const bounds = control.getBoundingClientRect();
+            const fontSize = parseFloat(getComputedStyle(control).fontSize);
+            if (!control.textContent.trim())
+              failures.push(`${name}: missing visible label`);
+            if (bounds.width < 44 || bounds.height < 44)
+              failures.push(`${name}: target smaller than 44px`);
+            if (
+              box.width > fontSize * 1.5 ||
+              Math.abs(box.width - box.height) > 1
+            )
+              failures.push(`${name}: icon oversized or distorted`);
+            if (
+              box.left < bounds.left ||
+              box.right > bounds.right ||
+              box.top < bounds.top ||
+              box.bottom > bounds.bottom
+            )
+              failures.push(`${name}: icon outside control bounds`);
+          }
+          return failures;
+        });
+      return {
+        width: d.clientWidth,
+        scroll: d.scrollWidth,
+        dialogs,
+        iconFailures,
+      };
     });
     assert(
       m.scroll <= m.width,
@@ -284,6 +323,11 @@ try {
         d.scroll <= d.width,
         `${name}: dialog overflow ${JSON.stringify(d)}`,
       );
+    assert.deepEqual(
+      m.iconFailures,
+      [],
+      `${name}: ${m.iconFailures.join(", ")}`,
+    );
     return { name, ...m };
   };
   const measurements = [];
@@ -359,7 +403,13 @@ try {
   await page.waitForSelector("#result:not([hidden])");
   assert.equal(lastCreate.target, "https://example.com/guest-test");
   assert.equal(lastCreate.turnstile, "local-ui-fixture-token");
-  await page.locator("#copy-result").click();
+  // A click on an SVG path must reach the same action as the text label.
+  await page.locator("#copy-result .ui-icon").click();
+  await page.locator('#copy-result [data-icon="check"]').waitFor();
+  assert.equal(
+    await page.locator('#copy-result [data-icon="check"]').count(),
+    1,
+  );
   assert.equal(
     await page.evaluate(() => navigator.clipboard.readText()),
     "https://oh.io.vn/link-moi",
@@ -403,7 +453,7 @@ try {
   await page.locator("#search").fill("");
   await page.locator("#search-button").click();
   await page.waitForSelector(".link-card");
-  await page.locator('[data-action="edit"]').first().click();
+  await page.locator('[data-action="edit"] .ui-icon').first().click();
   await page.locator('#edit-form [name="label"]').fill("Tài liệu đã chỉnh sửa");
   await page.setViewportSize({ width: 320, height: 390 });
   measurements.push(await measure("edit-short-mobile"));
@@ -747,6 +797,10 @@ try {
     await page.locator("#copy-result").getAttribute("aria-label"),
     null,
   );
+  assert.equal(
+    await page.locator('#copy-result [data-icon="copy"]').count(),
+    1,
+  );
 
   // Search remains keyboard-operable while the initial list is pending.
   listDelay = 650;
@@ -882,6 +936,15 @@ try {
   actionDelay = 650;
   await page.locator("#confirm-admin-action").click();
   await page.waitForSelector("#confirm-admin-action[aria-busy=true]");
+  const pendingIcon = page.locator(
+    '#confirm-admin-action [data-icon="loading"]',
+  );
+  assert.equal(await pendingIcon.count(), 1);
+  assert.equal(
+    await pendingIcon.evaluate((el) => getComputedStyle(el).animationName),
+    "none",
+    "Reduced motion must disable the loading icon animation",
+  );
   await page.keyboard.press("Escape");
   assert.equal(
     await page.locator("#admin-confirm-dialog").getAttribute("open"),

@@ -1,4 +1,5 @@
 import "./styles.css";
+import { icon } from "./icons.js";
 import { VerificationGate } from "./verification";
 import { requestJson } from "./request";
 import { canEditLink } from "./link-state";
@@ -91,10 +92,24 @@ async function api<T = any>(
 ): Promise<T> {
   return requestJson<T>(path, options, me.csrf);
 }
+type IconName = Parameters<typeof icon>[0];
+function setControlLabel(control: HTMLElement, label: string, name: IconName) {
+  const text = document.createElement("span");
+  text.textContent = label;
+  control.innerHTML = icon(name);
+  control.append(text);
+}
 function message(selector: string, value: string, error = false) {
   const el = $(selector);
   if (el) {
     el.textContent = value;
+    if (value && el.classList.contains("notice")) {
+      const text = document.createElement("span");
+      text.textContent = value;
+      el.innerHTML = icon(error ? "error" : "info");
+      el.append(text);
+      el.classList.add("icon-notice");
+    }
     el.classList.toggle("error", error);
   }
 }
@@ -114,7 +129,7 @@ async function copy(
       label: button.getAttribute("aria-label"),
     };
     clearTimeout(previous.timer);
-    button.textContent = "Đã sao chép";
+    setControlLabel(button, "Đã sao chép", "check");
     button.setAttribute("aria-label", "Đã sao chép");
     previous.timer = setTimeout(() => {
       button.innerHTML = previous.html;
@@ -173,7 +188,7 @@ async function account() {
   if (me.user) {
     $("#nav-dashboard").hidden = false;
     $("#account").innerHTML =
-      `${me.admin ? `<a href="/admin/" class="quiet"${location.pathname === "/admin/" ? ' aria-current="page"' : ""}>Quản trị</a>` : ""}<button class="quiet" id="logout">Đăng xuất</button>`;
+      `${me.admin ? `<a href="/admin/" class="quiet"${location.pathname === "/admin/" ? ' aria-current="page"' : ""}>${icon("admin")}<span>Quản trị</span></a>` : ""}<button class="quiet" id="logout">${icon("logout")}<span>Đăng xuất</span></button>`;
     $("#logout").addEventListener("click", async () => {
       const button = $<HTMLButtonElement>("#logout");
       button.disabled = true;
@@ -319,7 +334,7 @@ async function home() {
     $("#guest-hint").hidden = true;
   }
   const config = await api("/api/config");
-  submit.textContent = "Rút gọn link";
+  setControlLabel(submit, "Rút gọn link", "link");
   async function initializeWidget() {
     if (widget !== undefined) return;
     await loadVerificationScript();
@@ -429,15 +444,17 @@ async function home() {
     resultBox.hidden = true;
     if (!validateForm()) return;
     button.disabled = true;
-    button.textContent = verification.ready
-      ? "Đang tạo link…"
-      : "Đang xác minh…";
+    setControlLabel(
+      button,
+      verification.ready ? "Đang tạo link…" : "Đang xác minh…",
+      "loading",
+    );
     form.setAttribute("aria-busy", "true");
     try {
       if (!verification.ready && !challengeRunning) await startVerification();
       const token = await verification.take();
       restartNeeded = true;
-      button.textContent = "Đang tạo link…";
+      setControlLabel(button, "Đang tạo link…", "loading");
       const values = new FormData(form);
       const fixed = String(values.get("fixed_expires_at") ?? "");
       const result = await api("/api/links", {
@@ -483,7 +500,7 @@ async function home() {
       }
     } finally {
       button.disabled = false;
-      button.textContent = "Rút gọn link";
+      setControlLabel(button, "Rút gọn link", "link");
       form.removeAttribute("aria-busy");
     }
   });
@@ -499,7 +516,7 @@ const expiryHoldNotice =
   "Tạm dừng tính hạn không hoạt động trong lúc kiểm tra số liệu truy cập. Ngày hết hạn cố định vẫn giữ nguyên.";
 function card(l: LinkData) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
+  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">${icon("copy")}<span>Sao chép</span></button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">${icon("delete")}<span>Xóa</span></button></div></article>`;
 }
 async function loadLinks(append = false) {
   const more = $<HTMLButtonElement>("#load-more");
@@ -524,8 +541,8 @@ async function loadLinks(append = false) {
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
       : q.trim()
-        ? '<div class="empty"><h2>Không tìm thấy link</h2><p>Thử tìm theo tên hoặc mã link khác.</p></div>'
-        : '<div class="empty"><h2>Chưa có link nào</h2><p>Tạo link để xem và quản lý tại đây.</p><a class="secondary" href="/">Tạo link đầu tiên</a></div>';
+        ? `<div class="empty">${icon("search-empty")}<h2>Không tìm thấy link</h2><p>Thử tìm theo tên hoặc mã link khác.</p></div>`
+        : `<div class="empty">${icon("link")}<h2>Chưa có link nào</h2><p>Tạo link để xem và quản lý tại đây.</p><a class="secondary" href="/">${icon("plus")}<span>Tạo link đầu tiên</span></a></div>`;
     message(
       "#list-status",
       links.length
@@ -547,7 +564,7 @@ async function loadLinks(append = false) {
       );
       if (!append && !links.length) {
         $("#link-list").innerHTML =
-          '<div class="empty" role="status"><h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại danh sách.</p><button id="retry-links" class="secondary" type="button">Tải lại danh sách</button></div>';
+          `<div class="empty" role="status">${icon("error")}<h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại danh sách.</p><button id="retry-links" class="secondary" type="button">${icon("retry")}<span>Tải lại danh sách</span></button></div>`;
         $("#retry-links").addEventListener("click", () => void loadLinks());
       }
     }
@@ -564,7 +581,7 @@ async function dashboard() {
   if (!$("#link-list")) return;
   if (!me.user) {
     $("#link-list").innerHTML =
-      '<div class="empty"><h2>Đăng nhập để quản lý link</h2><p>Bạn có thể sửa link đã tạo bằng tài khoản và xem thống kê.</p><a class="primary" href="/auth/login">Đăng nhập Google</a></div>';
+      `<div class="empty"><h2>Đăng nhập để quản lý link</h2><p>Bạn có thể sửa link đã tạo bằng tài khoản và xem thống kê.</p><a class="primary" href="/auth/login">${icon("login")}<span>Đăng nhập Google</span></a></div>`;
     $("#link-search").hidden = true;
     return;
   }
@@ -621,7 +638,7 @@ async function dashboard() {
     }
     if (b.dataset.action === "stats") {
       b.disabled = true;
-      b.textContent = "Đang tải…";
+      setControlLabel(b, "Đang tải…", "loading");
       try {
         const data = await api<Stats>(`/api/links/${link.slug}/stats`);
         if (request !== detailRequest) return;
@@ -641,7 +658,7 @@ async function dashboard() {
           message("#dashboard-notice", (e as Error).message, true);
       } finally {
         b.disabled = false;
-        b.textContent = "Thống kê";
+        setControlLabel(b, "Thống kê", "stats");
       }
     }
   });
@@ -656,7 +673,7 @@ async function dashboard() {
     const editedSlug = selected!.slug;
     const fixed = String(f.get("fixed_expires_at") ?? "");
     button.disabled = true;
-    button.textContent = "Đang lưu…";
+    setControlLabel(button, "Đang lưu…", "loading");
     form.setAttribute("aria-busy", "true");
     message("#edit-message", "");
     try {
@@ -684,7 +701,7 @@ async function dashboard() {
       message("#edit-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
-      button.textContent = "Lưu thay đổi";
+      setControlLabel(button, "Lưu thay đổi", "save");
       form.removeAttribute("aria-busy");
     }
   });
@@ -693,7 +710,7 @@ async function dashboard() {
     if (button.disabled) return;
     const deletedSlug = selected!.slug;
     button.disabled = true;
-    button.textContent = "Đang xóa…";
+    setControlLabel(button, "Đang xóa…", "loading");
     button.setAttribute("aria-busy", "true");
     message("#delete-message", "");
     try {
@@ -716,7 +733,7 @@ async function dashboard() {
       message("#delete-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
-      button.textContent = "Xóa link";
+      setControlLabel(button, "Xóa link", "delete");
       button.removeAttribute("aria-busy");
     }
   };
@@ -726,7 +743,7 @@ async function dashboard() {
     const slug = selected.slug;
     const button = $<HTMLButtonElement>("#export-excel");
     button.disabled = true;
-    button.textContent = "Đang xuất…";
+    setControlLabel(button, "Đang xuất…", "loading");
     message("#stats-message", "");
     try {
       const { default: writeXlsxFile } =
@@ -770,7 +787,7 @@ async function dashboard() {
       message("#stats-message", "Không xuất được Excel. Hãy thử lại.", true);
     } finally {
       button.disabled = false;
-      button.textContent = "Xuất Excel";
+      setControlLabel(button, "Xuất Excel", "download");
     }
   };
   await loadLinks();
@@ -798,7 +815,7 @@ function renderStats(data: Stats) {
     <div class="chart">${days.map(([day, n]) => `<span class="chart-bar" title="${calendarDate(day)}: ${n} lượt" style="height:${(n / max) * 100}%"></span>`).join("")}</div></div>
     <div class="chart-axis small"><time datetime="${days[0][0]}">${days[0][0].split("-").reverse().join("/")}</time><time datetime="${days[29][0]}">${days[29][0].split("-").reverse().join("/")}</time></div></figure>`;
   $("#stats-content").innerHTML =
-    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice icon-notice">${icon("info")}<div>Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div></div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 async function admin() {
   if (!$("#admin-content")) return;
@@ -858,7 +875,7 @@ async function admin() {
       blocked
         .map(
           (b: any) =>
-            `<div class="stat-row"><span>${esc(blockKind(b.kind))} - ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
+            `<div class="stat-row"><span>${esc(blockKind(b.kind))} - ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">${icon("unlock")}<span>Gỡ</span></button></div>`,
         )
         .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
@@ -879,7 +896,7 @@ async function admin() {
   ) => {
     if (actionPending) return false;
     actionPending = true;
-    const label = button.textContent;
+    const content = button.innerHTML;
     const controls = [
       ...$("#admin-content").querySelectorAll<
         HTMLInputElement | HTMLButtonElement | HTMLSelectElement
@@ -890,7 +907,7 @@ async function admin() {
       control.disabled = true;
     });
     button.disabled = true;
-    button.textContent = "Đang lưu…";
+    setControlLabel(button, "Đang lưu…", "loading");
     button.setAttribute("aria-busy", "true");
     message(feedback, "Đang lưu thay đổi…");
     try {
@@ -917,7 +934,7 @@ async function admin() {
         control.disabled = disabled[index];
       });
       button.disabled = false;
-      button.textContent = label;
+      button.innerHTML = content;
       button.removeAttribute("aria-busy");
       actionPending = false;
     }
@@ -937,7 +954,15 @@ async function admin() {
     $("#admin-confirm-title").textContent = title;
     $("#admin-confirm-subject").textContent = subject;
     $("#admin-confirm-description").textContent = description;
-    confirmButton.textContent = title.replace(/\?$/, "");
+    setControlLabel(
+      confirmButton,
+      title.replace(/\?$/, ""),
+      body.action === "remove_block" || body.blocked === false
+        ? "unlock"
+        : body.action === "block_user" || body.action === "block_user_links"
+          ? "lock"
+          : "block",
+    );
     message("#admin-confirm-message", "");
     confirmButton.onclick = async () => {
       if (
@@ -1028,7 +1053,7 @@ async function admin() {
     if (button.disabled) return;
     const q = new FormData(form).get("query");
     button.disabled = true;
-    button.textContent = "Đang tìm…";
+    setControlLabel(button, "Đang tìm…", "loading");
     $("#admin-results").setAttribute("aria-busy", "true");
     message("#admin-search-message", "Đang tra cứu…");
     message("#admin-results-message", "");
@@ -1040,13 +1065,13 @@ async function admin() {
         r.users
           .map(
             (u: any) =>
-              `<div class="panel"><p>${esc(u.email)} - ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">Khóa tất cả link của tài khoản</button></div>`,
+              `<div class="panel"><p>${esc(u.email)} - ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">${icon("lock")}<span>Khóa tất cả link của tài khoản</span></button></div>`,
           )
           .join("") +
           r.links
             .map(
               (l: any) =>
-                `<div class="link-card"><div><strong>${esc(l.slug)} - ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
+                `<div class="link-card"><div><strong>${esc(l.slug)} - ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">${icon("block")}<span>Vô hiệu hóa link</span></button></div>`,
             )
             .join("") ||
         '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';
@@ -1062,7 +1087,7 @@ async function admin() {
       );
     } finally {
       button.disabled = false;
-      button.textContent = "Tra cứu";
+      setControlLabel(button, "Tra cứu", "search");
       $("#admin-results").removeAttribute("aria-busy");
     }
   });
@@ -1095,7 +1120,11 @@ async function admin() {
         () => {
           if (b.dataset.adminAction === "block_user") {
             b.dataset.blocked = String(!blocking);
-            b.textContent = blocking ? "Mở khóa tài khoản" : "Khóa tài khoản";
+            setControlLabel(
+              b,
+              blocking ? "Mở khóa tài khoản" : "Khóa tài khoản",
+              blocking ? "unlock" : "lock",
+            );
           }
         },
       );
@@ -1127,10 +1156,9 @@ try {
   );
   if (submit) {
     submit.disabled = true;
-    submit.textContent = "Rút gọn link";
+    setControlLabel(submit, "Rút gọn link", "link");
   }
   const list = document.querySelector<HTMLElement>("#link-list");
   if (list && list.textContent?.includes("Đang tải link"))
-    list.innerHTML =
-      '<div class="empty" role="status"><h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại trang.</p></div>';
+    list.innerHTML = `<div class="empty" role="status">${icon("error")}<h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại trang.</p></div>`;
 }
