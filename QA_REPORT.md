@@ -1,10 +1,39 @@
 # Kiểm tra chức năng và giao diện oh.io.vn
 
+## Triển khai và kiểm tra production ngày 17/10/2026
+
+- Commit giao diện: `6112ca9f3a3660c1e8d7036dfeeabb2102224529`, đã push lên
+  `origin/main`. [GitHub Actions của commit](https://github.com/oh-io-vn/oh.io.vn/actions/runs/39040247130)
+  chạy thành công với typecheck, 54 kiểm thử và build.
+- Triển khai bằng `npm run deploy` lên custom domain `https://oh.io.vn`.
+  Cloudflare Worker version: `88986d73-04c8-420e-8e36-00e90ee1ecd7`.
+- Kiểm tra bằng Chrome trên domain thật, không mock API. Cả bảy trang trả
+  HTTP 200. Font tải được, không có exception JavaScript của ứng dụng hoặc
+  thông báo lỗi kết nối chung.
+- Đo bảy trang ở 1440, 768, 390 và 320 px. Kiểm tra thêm hộp đóng góp ở ba
+  kích thước, gồm 320 × 390, và chữ tăng 200%. Tổng cộng 32 phép đo đạt,
+  không tràn ngang. Đã mở và xem ảnh desktop/mobile thực tế sau triển khai.
+- Kiểm tra mở/đóng hộp đóng góp bằng Escape và trả focus về nút mở. Trường URL
+  nhận nhập liệu, nút rút gọn được bật. `/api/config` trả 200, vẫn cho tạo link
+  khách và có site key. Lượt này không gửi biểu mẫu tạo link hoặc sửa dữ liệu thật.
+- SHA-256 của `/assets/main-CSLnvFwe.js` và `/assets/main-DpAGVwpm.css` trên domain
+  thật khớp hoàn toàn với file trong `dist/` của bản build đã phát hành.
+- Console có cảnh báo CSP chặn `static.cloudflareinsights.com/beacon.min.js` do
+  Cloudflare chèn vào HTML. CSP của ứng dụng chỉ cho script cùng origin và
+  Turnstile. Không phát hiện lỗi hiển thị liên quan trong lượt kiểm tra này.
+  Đợt thiết kế không thay CSP hoặc cấu hình beacon thống kê.
+- Dashboard/admin production được kiểm tra ở trạng thái chưa đăng nhập, hiển
+  thị yêu cầu đăng nhập/quyền truy cập đúng. Các luồng tài khoản có dữ liệu vẫn
+  là bằng chứng local ở phần tiếp theo, chưa được thử lại bằng OAuth production.
+- Runner: `.local/design-production-qa.mjs`. Ảnh và kết quả đo/hash nằm trong
+  `.local/design-production-qa/`, gồm `home-1440.png`, `home-390.png` và
+  `results.json`. Đây là dữ liệu local được Git bỏ qua.
+
 ## Thiết kế giao diện SaaS, kiểm tra local ngày 17/10/2026
 
 Bản thiết kế mới đã chạy bằng `npm run dev` trên Worker local tại
-`http://localhost:8787`. Thay đổi của đợt này chưa triển khai lên production.
-Các mục phía dưới phần này là hồ sơ kiểm tra của giao diện cũ.
+`http://localhost:8787` trước khi triển khai. Kết quả production nằm ở phần trên.
+Phần "Hồ sơ kiểm tra giao diện trước khi thiết kế lại" là hồ sơ của giao diện cũ.
 
 ### Phạm vi và kết quả
 
