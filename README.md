@@ -11,6 +11,7 @@ Dự án công cụ rút gọn link miễn phí dành cho cộng đồng Việt 
 - [Thông tin thiết lập và vận hành](SETUP.md).
 - [Chạy local, phát hành, sao lưu và xử lý sự cố](OPERATIONS.md).
 - [Giấy phép thành phần bên thứ ba](THIRD_PARTY_NOTICES.md).
+- [Kết quả kiểm tra chức năng và responsive](QA_REPORT.md).
 
 ## Chức năng
 

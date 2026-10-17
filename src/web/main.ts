@@ -1,5 +1,8 @@
 import "./styles.css";
 import { VerificationGate } from "./verification";
+import { requestJson } from "./request";
+import { canEditLink } from "./link-state";
+import { copyText } from "./clipboard";
 type LinkData = {
   slug: string;
   label: string | null;
@@ -57,19 +60,7 @@ async function api<T = any>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      ...(options.method
-        ? { "Content-Type": "application/json", "X-CSRF-Token": me.csrf ?? "" }
-        : {}),
-      ...options.headers,
-    },
-  });
-  const data = (await response.json()) as any;
-  if (!response.ok)
-    throw new Error(data.error ?? "Có lỗi xảy ra. Vui lòng thử lại.");
-  return data;
+  return requestJson<T>(path, options, me.csrf);
 }
 function message(selector: string, value: string, error = false) {
   const el = $(selector);
@@ -80,7 +71,7 @@ function message(selector: string, value: string, error = false) {
 }
 async function copy(value: string, button: HTMLButtonElement) {
   try {
-    await navigator.clipboard.writeText(value);
+    await copyText(value);
     const old = button.innerHTML;
     button.textContent = "Đã sao chép";
     setTimeout(() => {
@@ -88,13 +79,20 @@ async function copy(value: string, button: HTMLButtonElement) {
     }, 1800);
   } catch {
     message(
-      "#form-message",
+      $("#link-list") ? "#dashboard-notice" : "#form-message",
       "Trình duyệt chưa cho phép sao chép. Bạn có thể chọn và sao chép địa chỉ bên trên.",
       true,
     );
   }
 }
 function configureDialogs() {
+  const busy = (dialog: HTMLDialogElement) =>
+    !!dialog.querySelector('[aria-busy="true"]');
+  document.querySelectorAll<HTMLDialogElement>("dialog").forEach((dialog) => {
+    dialog.addEventListener("cancel", (event) => {
+      if (busy(dialog)) event.preventDefault();
+    });
+  });
   document.querySelectorAll("[data-donate]").forEach((el) =>
     el.addEventListener("click", (event) => {
       event.preventDefault();
@@ -103,11 +101,12 @@ function configureDialogs() {
   );
   document.addEventListener("click", (event) => {
     const el = (event.target as HTMLElement).closest("[data-close]");
-    el?.closest<HTMLDialogElement>("dialog")?.close();
+    const dialog = el?.closest<HTMLDialogElement>("dialog");
+    if (dialog && !busy(dialog)) dialog.close();
   });
   document.querySelectorAll("dialog").forEach((d) =>
     d.addEventListener("click", (e) => {
-      if (e.target === d) {
+      if (e.target === d && !busy(d)) {
         const r = d.getBoundingClientRect();
         if (
           e.clientX < r.left ||
@@ -127,8 +126,15 @@ async function account() {
     $("#account").innerHTML =
       `<span class="user-name">${esc(me.user.name)}</span>${me.admin ? '<a href="/admin/" class="quiet">Quản trị</a>' : ""}<button class="quiet" id="logout">Đăng xuất</button>`;
     $("#logout").addEventListener("click", async () => {
-      await api("/api/logout", { method: "POST", body: "{}" });
-      location.href = "/";
+      const button = $<HTMLButtonElement>("#logout");
+      button.disabled = true;
+      try {
+        await api("/api/logout", { method: "POST", body: "{}" });
+        location.href = "/";
+      } catch (error) {
+        message("#global-notice", (error as Error).message, true);
+        button.disabled = false;
+      }
     });
   }
 }
@@ -353,29 +359,44 @@ let links: LinkData[] = [],
   next: string | null = null,
   selected: LinkData | null = null,
   stats: Stats | null = null;
+let detailRequest = 0;
+let listRequest = 0;
+let expiryHold = false;
 function card(l: LinkData) {
-  const active = l.status === "active" && l.expires_at > Date.now();
+  const active = canEditLink(l, expiryHold);
   return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || l.slug)} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Dữ liệu đã được dọn")}</div><div class="link-meta">Tạo ${date(l.created_at)} · Hạn ${date(l.expires_at)} (giờ Việt Nam)</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
 }
 async function loadLinks(append = false) {
+  const more = $<HTMLButtonElement>("#load-more");
+  if (append && more.disabled) return;
+  const request = ++listRequest;
+  more.disabled = true;
   try {
     const q = $<HTMLInputElement>("#search").value;
     const data = await api(
       `/api/links?q=${encodeURIComponent(q)}${append && next ? "&cursor=" + next : ""}`,
     );
+    if (request !== listRequest) return;
     links = append ? [...links, ...data.links] : data.links;
+    expiryHold = !!data.expiryHeld;
     next = data.next;
     $("#load-more").hidden = !next;
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
-      : '<p class="empty">Chưa có link nào. Tạo một link để bắt đầu chia sẻ.</p>';
-    if (data.expiryHeld)
-      message(
-        "#dashboard-notice",
-        "Hệ thống đang bảo vệ thời hạn link trong thời gian kiểm tra dữ liệu truy cập. Hạn cố định vẫn được áp dụng.",
-      );
+      : q.trim()
+        ? '<p class="empty">Không tìm thấy link phù hợp. Hãy thử từ khóa khác.</p>'
+        : '<p class="empty">Chưa có link nào. Tạo một link để bắt đầu chia sẻ.</p>';
+    message(
+      "#dashboard-notice",
+      expiryHold
+        ? "Hệ thống đang bảo vệ thời hạn link trong thời gian kiểm tra dữ liệu truy cập. Hạn cố định vẫn được áp dụng."
+        : "",
+    );
   } catch (e) {
-    message("#dashboard-notice", (e as Error).message, true);
+    if (request === listRequest)
+      message("#dashboard-notice", (e as Error).message, true);
+  } finally {
+    if (request === listRequest) more.disabled = false;
   }
 }
 async function dashboard() {
@@ -397,12 +418,15 @@ async function dashboard() {
       "[data-action]",
     );
     if (!b) return;
-    selected = links.find((l) => l.slug === b.dataset.slug)!;
+    const link = links.find((l) => l.slug === b.dataset.slug);
+    if (!link) return;
     if (b.dataset.action === "copy") {
-      await copy(location.origin + "/" + selected.slug, b);
+      await copy(location.origin + "/" + link.slug, b);
       return;
     }
+    const request = ++detailRequest;
     if (b.dataset.action === "edit") {
+      selected = link;
       const form = $<HTMLFormElement>("#edit-form");
       (form.elements.namedItem("target") as HTMLInputElement).value =
         selected.target ?? "";
@@ -414,22 +438,41 @@ async function dashboard() {
       message("#edit-message", "");
       $<HTMLDialogElement>("#edit-dialog").showModal();
     }
-    if (b.dataset.action === "delete")
+    if (b.dataset.action === "delete") {
+      selected = link;
+      message("#delete-message", "");
       $<HTMLDialogElement>("#delete-dialog").showModal();
+    }
     if (b.dataset.action === "stats") {
+      b.disabled = true;
       try {
-        stats = await api<Stats>(`/api/links/${selected.slug}/stats`);
+        const data = await api<Stats>(`/api/links/${link.slug}/stats`);
+        if (request !== detailRequest) return;
+        selected = link;
+        stats = data;
         renderStats(stats);
+        message("#stats-message", "");
         $<HTMLDialogElement>("#stats-dialog").showModal();
       } catch (e) {
-        message("#dashboard-notice", (e as Error).message, true);
+        if (request === detailRequest)
+          message("#dashboard-notice", (e as Error).message, true);
+      } finally {
+        b.disabled = false;
       }
     }
   });
   $("#edit-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = new FormData(e.target as HTMLFormElement);
+    const form = e.target as HTMLFormElement;
+    if (form.getAttribute("aria-busy") === "true") return;
+    const button = form.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    )!;
+    const f = new FormData(form);
     const fixed = String(f.get("fixed_expires_at") ?? "");
+    button.disabled = true;
+    form.setAttribute("aria-busy", "true");
+    message("#edit-message", "");
     try {
       await api(`/api/links/${selected!.slug}/edit`, {
         method: "PATCH",
@@ -443,9 +486,17 @@ async function dashboard() {
       await loadLinks();
     } catch (e) {
       message("#edit-message", (e as Error).message, true);
+    } finally {
+      button.disabled = false;
+      form.removeAttribute("aria-busy");
     }
   });
   $("#confirm-delete").onclick = async () => {
+    const button = $<HTMLButtonElement>("#confirm-delete");
+    if (button.disabled) return;
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    message("#delete-message", "");
     try {
       await api(`/api/links/${selected!.slug}/delete`, {
         method: "DELETE",
@@ -454,13 +505,19 @@ async function dashboard() {
       $<HTMLDialogElement>("#delete-dialog").close();
       await loadLinks();
     } catch (e) {
-      message("#dashboard-notice", (e as Error).message, true);
+      message("#delete-message", (e as Error).message, true);
+    } finally {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
     }
   };
   $("#export-excel").onclick = async () => {
     if (!stats || !selected) return;
+    const data = stats;
+    const slug = selected.slug;
     const button = $<HTMLButtonElement>("#export-excel");
     button.disabled = true;
+    message("#stats-message", "");
     try {
       const { default: writeXlsxFile } =
         await import("write-excel-file/browser");
@@ -472,8 +529,8 @@ async function dashboard() {
           { value: "Nhóm thiết bị", type: String },
           { value: "Lượt truy cập", type: String },
         ],
-        ...stats.rows.map((r) => [
-          { value: selected!.slug, type: String },
+        ...data.rows.map((r) => [
+          { value: slug, type: String },
           { value: r.day, type: String },
           { value: r.source, type: String },
           { value: r.device, type: String },
@@ -484,11 +541,11 @@ async function dashboard() {
         [{ value: "Thông tin phạm vi", type: String }],
         [
           {
-            value: `Dữ liệu từ ${stats.since}; số lượt, không phải người dùng duy nhất.`,
+            value: `Dữ liệu từ ${data.since}; số lượt, không phải người dùng duy nhất.`,
             type: String,
           },
         ],
-        ...stats.gaps.map((g) => [
+        ...data.gaps.map((g) => [
           {
             value: `Thiếu dữ liệu: ${date(g.started_at)} — ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${g.reason}`,
             type: String,
@@ -498,10 +555,10 @@ async function dashboard() {
       await writeXlsxFile([
         { data: rows, sheet: "Thống kê" },
         { data: notes, sheet: "Phạm vi" },
-      ]).toFile(`oh-${selected.slug}-${stats.since}.xlsx`);
+      ]).toFile(`oh-${slug}-${data.since}.xlsx`);
     } catch {
       message(
-        "#dashboard-notice",
+        "#stats-message",
         "Chưa xuất được Excel. Vui lòng thử lại.",
         true,
       );
@@ -679,7 +736,7 @@ try {
   await account();
   await Promise.all([home(), dashboard(), admin()]);
 } catch {
-  ["#form-message", "#dashboard-notice", "#admin-message"].forEach((s) =>
+  ["#global-notice"].forEach((s) =>
     message(
       s,
       "Chưa kết nối được dịch vụ. Vui lòng tải lại trang sau ít phút.",

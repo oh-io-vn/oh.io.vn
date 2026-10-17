@@ -1,4 +1,5 @@
 export const RESERVED = new Set([
+  "index",
   "admin",
   "api",
   "auth",

@@ -49,6 +49,26 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe("D1 và đường chuyển hướng thật", () => {
+  it("thống kê báo tạm dừng khi hệ thống tự giảm tải dù công tắc thủ công vẫn bật", async () => {
+    await insert("quota-stats");
+    const token = "e".repeat(64);
+    await env.DB.prepare(
+      "INSERT INTO sessions(hash,user_id,expires_at) VALUES(?,?,?)",
+    )
+      .bind(await hash(token), "u1", Date.now() + 86400000)
+      .run();
+    await env.DB.prepare(
+      "UPDATE policy SET automatic_level=80,analytics_enabled=1 WHERE id=1",
+    ).run();
+    const response = await SELF.fetch(
+      "http://localhost/api/links/quota-stats/stats",
+      { headers: { Cookie: "oh_session=" + token } },
+    );
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as { enabled: boolean }).enabled).toBe(
+      false,
+    );
+  });
   it("đăng xuất production thu hồi phiên và xóa cookie __Host với Secure", async () => {
     const token = "d".repeat(64);
     await env.DB.prepare(

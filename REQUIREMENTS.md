@@ -66,7 +66,7 @@ Google là phương thức đăng nhập duy nhất trong bản đầu. Đăng n
 - Mã link mặc định được tạo ngẫu nhiên, không dùng ID tuần tự công khai.
 - Tên ghi nhớ dùng trong trang quản lý, không phải trang trung gian của người bấm link.
 - Mã tùy chỉnh áp dụng nguyên tắc ai tạo trước được dùng trước.
-- Giữ lại tên hệ thống và tên dễ gây nhầm lẫn, tối thiểu gồm `admin`, `api`, `login`, `support`; bổ sung các đường dẫn mà ứng dụng sử dụng.
+- Giữ lại tên hệ thống và tên dễ gây nhầm lẫn, tối thiểu gồm `admin`, `api`, `login`, `support`, `index`; bổ sung các đường dẫn mà ứng dụng sử dụng.
 - Mã link giữ nguyên suốt vòng đời. Muốn mã khác phải tạo link mới.
 - Mọi mã đã sử dụng đều không được cấp lại sau khi xóa, hết hạn hoặc vô hiệu hóa. Có thể giữ một bản ghi tối thiểu đánh dấu mã đã dùng và dọn phần dữ liệu không còn cần thiết.
 - Quy tắc ký tự, độ dài, chuẩn hóa chữ hoa/chữ thường và giới hạn độ dài địa chỉ đích thuộc đặc tả kỹ thuật cần ghi rõ trước khi triển khai chức năng tương ứng.

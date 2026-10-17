@@ -6,6 +6,10 @@ import {
   sourceGroup,
 } from "../src/shared/rules";
 describe("Quy tắc công khai", () => {
+  it("giữ mã index cho trang tĩnh để không tạo link bị route trang chủ che mất", () => {
+    expect(() => slugValue("index")).toThrow("dành cho hệ thống");
+    expect(() => slugValue("INDEX")).toThrow("dành cho hệ thống");
+  });
   it("cộng tháng lịch theo Việt Nam và kẹp ngày cuối tháng", () => {
     expect(
       new Date(

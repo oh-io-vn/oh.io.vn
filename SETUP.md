@@ -62,7 +62,7 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 - Kho `oh-io-vn/backups` đã kiểm tra `PRIVATE`, `BACKUP_ENABLED=true`; secrets mã hóa/endpoint đã đặt. Workflow production `39029887755` thành công, bản có 1 tài khoản và 1 link đã phục hồi sang D1 local tách biệt, đúng target, không phiên và không lỗi khóa ngoại.
 - Token giám sát chỉ đọc Account Analytics:Read + D1:Read, giới hạn đúng tài khoản dự án, đã lưu Cloudflare Secrets. Cron thật 18:40 ngày 17/10/2026 ghi số liệu vào admin và mức giảm tải bình thường.
 - Rule Cloudflare `oh.io.vn API and login burst guard` đã bật: 20 yêu cầu/IP/10 giây với `/api/` hoặc `/auth/`, chặn 10 giây, không áp cho chuyển hướng link.
-- Bộ kiểm thử có 42 ca đạt, gồm giới hạn đồng thời, lịch tháng, redirect, quyền sở hữu, CSRF, cookie đăng xuất production, cờ sự cố độc lập, chờ/làm mới token Turnstile và mã hóa backup. Build/typecheck đạt. Đã thao tác Google login, tạo/sửa link tài khoản, thống kê và xuất XLSX production trên Chrome; workbook tải về có hai sheet, đúng mã link/nhóm nguồn và không có ô công thức. Các lượt bấm thử là dữ liệu kiểm chứng, không phải người dùng thật.
+- Bộ kiểm thử có 54 ca đạt, gồm giới hạn đồng thời, lịch tháng, redirect, quyền sở hữu, CSRF, cookie đăng xuất production, cờ sự cố độc lập, chờ/làm mới token Turnstile và mã hóa backup. Build/typecheck đạt. Đã thao tác Google login, tạo/sửa link tài khoản, thống kê và xuất XLSX production trên Chrome; workbook tải về có hai sheet, đúng mã link/nhóm nguồn và không có ô công thức. Các lượt bấm thử là dữ liệu kiểm chứng, không phải người dùng thật.
 - Đăng xuất production đã kiểm chứng trả 200 sau khi sửa xóa cookie `__Host-` với thuộc tính Secure. Mẫu thống kê sau khi giảm truy vấn trùng: 5 ms CPU; callback Google có mẫu 14 ms nhưng outcome vẫn `ok`. Chưa thử tải lớn.
 - Ngày 17/10/2026 đã tạo khách đầu cuối trên production qua Turnstile thật: `s377a3ks`, D1 xác nhận owner rỗng và months=3. Sau lần gặp 300030, thao tác thử lại tại chỗ phục hồi được, giữ URL và không cần đăng nhập. Công cụ chẩn đoán chính thức Cloudflare cũng báo đạt; không khẳng định mọi lỗi 300030 đều do tự động hóa.
 - Bản dùng execution theo thao tác đã tạo tiếp `xf2g2as4` sau đúng một lần bấm “Rút gọn link”: tự chờ xác minh rồi tạo thành công, không cần đăng nhập hoặc bấm lại. Cả hai link khách chuyển 302 đúng về repository nguồn. Đây là kiểm thử chức năng trên lưu lượng nhỏ, không phải cam kết mọi trình duyệt/mạng luôn được Cloudflare chấp nhận.
@@ -73,3 +73,8 @@ Chi tiết lệnh và giới hạn vận hành tại [OPERATIONS.md](OPERATIONS.
 ## Bằng chứng local
 
 Ảnh kiểm chứng được giữ trong `.local/verification/`, đã được loại khỏi Git để tránh công khai ảnh giao diện quản trị. Không coi các ảnh này là dữ liệu ứng dụng hoặc bản sao lưu hạ tầng.
+
+
+## Kiểm tra responsive và chức năng
+
+Đã triển khai các sửa lỗi màn hình hẹp, hộp thoại, phản hồi bất đồng bộ và thông báo lỗi ngày 17/10/2026. Ma trận 7 trang ở 320/360/390/768/1280 px, các luồng production và các giới hạn bằng chứng được ghi tại [QA_REPORT.md](QA_REPORT.md).

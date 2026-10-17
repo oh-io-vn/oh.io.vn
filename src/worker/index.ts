@@ -316,7 +316,9 @@ app.get("/api/links/:slug/stats", async (c) => {
     rows: data.results,
     gaps: gaps.results,
     since,
-    enabled: !!c.get("policy").analytics_enabled,
+    enabled:
+      !!c.get("policy").analytics_enabled &&
+      c.get("policy").automatic_level < 80,
   });
 });
 app.use("/api/admin/*", async (c, next) => {
