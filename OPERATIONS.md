@@ -73,6 +73,24 @@ Custom domain được khai báo trong `wrangler.jsonc`. Giữ nguyên MX/TXT Em
 
 Không tự triển khai từ pull request không tin cậy. Workflow công khai chạy kiểm tra, không có deploy credentials. Triển khai thủ công bằng Wrangler của chủ dự án.
 
+### CSP và Cloudflare Web Analytics
+
+Cloudflare tự chèn beacon vào HTML trên domain thật. `script-src` trong
+`public/_headers` cho phép đúng `https://static.cloudflareinsights.com/beacon.min.js`
+và đường dẫn con `https://static.cloudflareinsights.com/beacon.min.js/` để tải URL
+có hậu tố phiên bản. Dấu `/` cuối là quy tắc khớp tiền tố đường dẫn của CSP,
+không phải quyền tải mọi script trên tên miền này.
+
+Với cách chèn tự động, beacon gửi về `/cdn-cgi/rum` cùng domain; `connect-src 'self'`
+đã cho phép. Giữ các giới hạn hiện tại cho script inline, eval và kết nối ngoài.
+Tham khảo [hướng dẫn CSP của Cloudflare](https://developers.cloudflare.com/web-analytics/faq/#what-do-i-need-to-add-to-my-content-security-policy-csp).
+
+Chạy `node scripts/test-csp.mjs` bằng Playwright và Chrome có sẵn, dùng biến
+`PLAYWRIGHT_PACKAGE` như hướng dẫn kiểm thử UI trong `AGENTS.md`. Kiểm thử này
+dùng phản hồi giả trong browser, không gửi analytics thật; kiểm tra cả beacon
+được phép và các nguồn phải bị chặn. Sau deploy, xác nhận script tải thành công,
+POST `/cdn-cgi/rum` nhận phản hồi thành công và console không còn lỗi CSP.
+
 ## Giám sát và giới hạn
 
 Các hạn mức 3/20/100/200 nằm trong D1 policy, trigger kiểm tra ngay trong INSERT. Dữ liệu cửa sổ 24 giờ được dọn nhưng trigger vẫn lọc thời gian chính xác; không reset lúc nửa đêm. Burst 15 thao tác/60 giây là lớp hạn chế gần người dùng, không phải quota toàn cầu chính xác.
