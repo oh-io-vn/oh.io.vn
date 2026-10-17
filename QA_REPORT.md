@@ -2,6 +2,15 @@
 
 Ngày kiểm tra: 17/10/2026. Bản sửa đã triển khai lên https://oh.io.vn. Báo cáo phân biệt production, Worker local với dữ liệu giả và phép đo bố cục trong khung trình duyệt.
 
+## Lần tối giản giao diện tiếp theo
+
+- Bỏ khẩu hiệu, các khối giới thiệu trên trang chủ, tên tài khoản trên thanh điều hướng và câu lặp trong trang quản lý. Giữ thông tin thời hạn, lỗi và xác nhận xóa.
+- Chữ giao diện dùng chung cỡ 16 px. Nội dung do ứng dụng viết không dùng chữ hoa toàn bộ, dấu chấm phẩy, gạch chéo hoặc gạch ngang dài làm dấu câu. Ngày được viết bằng chữ. Địa chỉ và dữ liệu người dùng giữ nguyên.
+- Đo lại bảy trang tại khung rộng 320, 390, 768 và 1280 px. Cả 28 trường hợp có chiều rộng nội dung không vượt viewport và chữ hiển thị đều là 16 px. Không phát hiện dấu chấm phẩy hoặc hai loại gạch ngang dài trong chữ đang hiển thị.
+- Kiểm tra thêm trang chủ khách và hộp sửa, thống kê, đóng góp trong khung 320 px. Hộp sửa có lỗi lưới làm trường nhập tràn ngang sau khi tăng cỡ chữ. Đã sửa kích thước cột và nhãn, đo lại hộp rộng 271 px có nội dung rộng 271 px. Hộp thống kê cuộn được trong khung thấp 390 px.
+- Kiểm tra trên Chrome với iframe cùng origin và Worker local dùng dữ liệu giả. Đây là kiểm tra bố cục responsive, chưa phải kiểm tra trên thiết bị di động thật.
+- 54 kiểm thử tự động đều đạt. Kiểm tra kiểu và bản build production thành công. Ảnh mã đóng góp giữ nguyên mã băm.
+
 ## Những lỗi đã sửa
 
 1. Mã link dài làm trang quản lý và thống kê tràn ngang. Mã 64 ký tự từng làm khung rộng 390 px có nội dung rộng 604 px; sau sửa các kích thước bên dưới không còn tràn.

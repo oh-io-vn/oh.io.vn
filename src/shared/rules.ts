@@ -33,7 +33,7 @@ export function addMonths(timestamp: number, months: number): number {
 export function slugValue(value: unknown): string {
   if (typeof value !== "string" || !/^[a-zA-Z0-9_-]{3,64}$/.test(value))
     throw new Error(
-      "Mã link cần 3–64 ký tự: chữ, số, dấu gạch ngang hoặc gạch dưới.",
+      "Mã link cần từ 3 đến 64 ký tự: chữ, số, dấu gạch ngang hoặc gạch dưới.",
     );
   const slug = value.toLowerCase();
   if (RESERVED.has(slug)) throw new Error("Mã này được dành cho hệ thống.");
@@ -46,11 +46,11 @@ export function targetValue(value: unknown, origin = "https://oh.io.vn"): URL {
   try {
     u = new URL(value.trim());
   } catch {
-    throw new Error("Nhập địa chỉ đầy đủ, bắt đầu bằng https:// hoặc http://.");
+    throw new Error("Nhập địa chỉ web đầy đủ.");
   }
   if (!["http:", "https:"].includes(u.protocol) || u.username || u.password)
     throw new Error(
-      "Chỉ chấp nhận địa chỉ HTTP/HTTPS không chứa thông tin đăng nhập.",
+      "Chỉ chấp nhận địa chỉ web không chứa thông tin đăng nhập.",
     );
   const h = u.hostname.toLowerCase().replace(/\.$/, "");
   if (

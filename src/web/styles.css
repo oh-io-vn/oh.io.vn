@@ -1,6 +1,8 @@
 @import "@fontsource-variable/space-grotesk";
 :root {
   font-family: "Space Grotesk Variable", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
   color: #17304a;
   background: #f8fbff;
   font-synthesis: none;
@@ -22,9 +24,20 @@ a {
   color: var(--blue);
   text-underline-offset: 4px;
 }
+h1,
+h2,
+h3,
+p,
 button,
 input,
-select {
+select,
+textarea {
+  font-size: inherit;
+}
+button,
+input,
+select,
+textarea {
   font: inherit;
 }
 button,
@@ -56,11 +69,10 @@ footer {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
+  flex-wrap: wrap;
 }
 .brand {
-  font-size: 29px;
   font-weight: 700;
-  letter-spacing: -1.8px;
   text-decoration: none;
   color: #17304a;
 }
@@ -69,74 +81,43 @@ footer {
 }
 nav {
   display: flex;
-  gap: 24px;
+  gap: 16px;
   align-items: center;
+  flex-wrap: wrap;
 }
 nav a {
   text-decoration: none;
-  font-size: 14px;
 }
 .user-menu {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.user-name {
-  font-size: 13px;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 main {
   max-width: 1056px;
   margin: 0 auto;
-  padding: 64px 32px 88px;
+  padding: 56px 32px 72px;
   min-height: calc(100vh - 184px);
 }
 .hero {
-  max-width: 780px;
+  max-width: 640px;
   margin: 0 auto;
   text-align: center;
 }
-.eyebrow {
-  text-transform: uppercase;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 2px;
-  color: var(--blue);
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: center;
-}
 h1 {
-  font-size: clamp(38px, 5.5vw, 62px);
-  line-height: 1.12;
-  letter-spacing: -2.4px;
+  line-height: 1.6;
   margin: 24px 0 20px;
   font-weight: 600;
 }
 h1 span {
   color: var(--blue);
 }
-.intro {
-  font-size: 17px;
-  line-height: 1.75;
-  color: var(--muted);
-  max-width: 580px;
-  margin: 0 auto;
-}
 .shortener {
   text-align: left;
-  margin-top: 44px;
-  padding: 28px;
-  background: white;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  margin-top: 0;
+  padding: 0;
 }
 .form-label {
-  font-size: 13px;
   font-weight: 600;
   display: block;
   margin: 0 0 9px;
@@ -192,16 +173,21 @@ input:focus {
   background: transparent;
   color: var(--muted);
   padding: 8px;
-  font-size: 13px;
 }
 .hint,
 .small {
-  font-size: 12px;
   color: var(--muted);
   line-height: 1.7;
 }
+.hint:empty,
+.turnstile:empty {
+  display: none;
+}
+.turnstile:not(:empty) {
+  margin-top: 16px;
+}
 .hint {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
 }
 .optional {
   margin-top: 20px;
@@ -209,9 +195,12 @@ input:focus {
   padding-top: 16px;
 }
 .optional summary {
-  font-size: 13px;
+  list-style: none;
   color: var(--blue);
   cursor: pointer;
+}
+summary::-webkit-details-marker {
+  display: none;
 }
 .fields {
   display: grid;
@@ -223,21 +212,19 @@ input:focus {
   grid-column: 1/-1;
 }
 .fields label {
-  font-size: 12px;
+  min-width: 0;
   line-height: 1.8;
 }
 .fields input {
   margin-top: 6px;
 }
 .turnstile {
-  margin-top: 16px;
   min-height: 0;
 }
 .verification-retry {
   margin-top: 12px;
 }
 .notice {
-  font-size: 13px;
   line-height: 1.7;
   border-radius: 6px;
   background: var(--soft);
@@ -258,7 +245,6 @@ input:focus {
   padding-top: 20px;
 }
 .result-url {
-  font-size: 19px;
   word-break: break-all;
 }
 .result-head {
@@ -267,36 +253,8 @@ input:focus {
   align-items: center;
   justify-content: space-between;
 }
-.features {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 36px;
-  margin: 64px auto 0;
-  max-width: 780px;
-  text-align: left;
-}
-.feature h2 {
-  font-size: 14px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.feature p {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.8;
-  margin: 0;
-}
-.under-note {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 40px;
-}
-.under-note a {
-  font-size: 12px;
-}
 footer {
   border-top: 1px solid var(--line);
-  font-size: 12px;
   color: var(--muted);
   flex-wrap: wrap;
 }
@@ -317,13 +275,10 @@ footer a {
   margin-bottom: 28px;
 }
 .page-head h1 {
-  font-size: 36px;
   margin: 0 0 10px;
-  letter-spacing: -1.3px;
 }
 .page-head p {
   color: var(--muted);
-  font-size: 14px;
   margin: 0;
 }
 .toolbar {
@@ -362,18 +317,15 @@ dialog {
   overflow-wrap: anywhere;
 }
 .link-title {
-  font-size: 16px;
   margin: 0 0 7px;
   font-weight: 600;
 }
 .link-target {
-  font-size: 12px;
   color: var(--muted);
   word-break: break-all;
   max-width: 620px;
 }
 .link-meta {
-  font-size: 11px;
   color: var(--muted);
   margin-top: 10px;
 }
@@ -402,28 +354,15 @@ dialog {
   margin: auto;
   line-height: 1.9;
 }
-.prose h1 {
-  font-size: 38px;
-  letter-spacing: -1.5px;
-}
 .prose h2 {
-  font-size: 20px;
   margin-top: 32px;
 }
 .prose p,
 .prose li {
-  font-size: 14px;
   color: #405b73;
 }
 .prose ul {
   padding-left: 22px;
-}
-.prose .lead {
-  font-size: 17px;
-}
-.prose .kicker {
-  font-size: 12px;
-  color: var(--blue);
 }
 dialog {
   border: 1px solid var(--line);
@@ -441,9 +380,7 @@ dialog::backdrop {
   background: #102e4b66;
 }
 dialog h2 {
-  font-size: 22px;
   margin-top: 0;
-  letter-spacing: -0.6px;
 }
 .dialog-top {
   display: flex;
@@ -475,11 +412,9 @@ dialog h2 {
 }
 .donate-info {
   text-align: center;
-  font-size: 13px;
   line-height: 1.8;
 }
 .stats-total {
-  font-size: 38px;
   color: var(--blue);
   margin: 14px 0;
 }
@@ -489,7 +424,6 @@ dialog h2 {
   gap: 24px;
 }
 .stat-row {
-  font-size: 12px;
   display: flex;
   justify-content: space-between;
   padding: 7px 0;
@@ -531,14 +465,12 @@ dialog h2 {
   margin-bottom: 20px;
 }
 .panel h2 {
-  font-size: 17px;
   margin-top: 0;
 }
 .toggle {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 13px;
   padding: 9px 0;
   gap: 16px;
 }
@@ -551,24 +483,17 @@ dialog h2 {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.limits label {
-  font-size: 12px;
-}
 .limits input {
   margin-top: 5px;
 }
 pre {
-  font:
-    12px "Space Grotesk Variable",
-    sans-serif;
+  font: inherit;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.6;
 }
 .badge {
   display: inline-block;
-  font-size: 10px;
-  letter-spacing: 0.3px;
   background: var(--soft);
   padding: 3px 7px;
   border-radius: 4px;
@@ -588,7 +513,6 @@ pre {
 table {
   border-collapse: collapse;
   width: 100%;
-  font-size: 12px;
 }
 th,
 td {
@@ -621,10 +545,6 @@ td {
     display: inline-flex;
     align-items: center;
   }
-  input,
-  select {
-    font-size: 16px;
-  }
   .primary,
   .secondary,
   .quiet {
@@ -635,16 +555,6 @@ td {
   main {
     padding: 40px 20px 64px;
   }
-  h1 {
-    letter-spacing: -1.5px;
-  }
-  .intro {
-    font-size: 15px;
-  }
-  .shortener {
-    padding: 20px;
-    margin-top: 30px;
-  }
   .input-row {
     flex-direction: column;
   }
@@ -652,17 +562,9 @@ td {
     width: 100%;
     padding: 14px;
   }
-  .features {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    margin-top: 38px;
-  }
-  .feature h2 {
-    margin: 0 0 5px;
-  }
   .fields,
   .admin-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .page-head {
     align-items: start;
@@ -690,19 +592,11 @@ td {
   .dialog-actions {
     flex-wrap: wrap;
   }
-  .user-name {
-    display: none;
-  }
   footer {
     gap: 16px;
   }
   .user-menu {
     gap: 2px;
-  }
-  .brand {
-    font-size: 26px;
-  }
-  .prose h1 {
-    font-size: 32px;
+    flex-wrap: wrap;
   }
 }

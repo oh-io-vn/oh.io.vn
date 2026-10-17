@@ -217,6 +217,8 @@ Các giá trị sau đã được thống nhất làm cấu hình thử nghiệm
 - Phong cách siêu tối giản, phẳng, sáng sủa.
 - Màu nhấn xanh nước biển sáng, thiên pastel; chữ và điều khiển phải dễ đọc.
 - Một họ font duy nhất: Space Grotesk; kiểm tra hiển thị tiếng Việt đầy đủ.
+- Toàn bộ chữ giao diện dùng chung cỡ 16 px, kể cả tiêu đề, nút, trường nhập và nội dung phụ. Dùng độ đậm và khoảng cách để phân cấp.
+- Nội dung hiển thị ngắn gọn, bỏ khẩu hiệu và câu giải thích lặp. Không viết hoa toàn bộ, không dùng dấu chấm phẩy, dấu gạch chéo, gạch ngang dài hoặc gạch ngang vừa làm dấu câu. Giữ nguyên dữ liệu người dùng và cú pháp địa chỉ khi cần thiết.
 - Không sử dụng icon hoặc emoji trong giao diện, không dùng thư viện icon. Các nút thao tác dùng chữ rõ nghĩa; không có favicon đồ họa.
 - Sử dụng thuận tiện trên điện thoại và máy tính; thao tác bàn phím, nhãn điều khiển và trạng thái lỗi rõ ràng.
 - Không ép đăng nhập khi khách chỉ muốn tạo link trong hạn mức.
