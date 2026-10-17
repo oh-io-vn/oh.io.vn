@@ -840,7 +840,7 @@ async function admin() {
       data.audit
         .map(
           (r: any) =>
-            `<div class="stat-row"><span>${esc(adminAction(r.action))} · ${esc(r.subject)}</span><span>${date(r.created_at)}</span></div>`,
+            `<div class="stat-row"><span>${esc(adminAction(r.action))} - ${esc(r.subject)}</span><span>${date(r.created_at)}</span></div>`,
         )
         .join("") || '<p class="small">Chưa có thao tác.</p>';
     const blocked = await api("/api/admin/blocklist");
@@ -848,7 +848,7 @@ async function admin() {
       blocked
         .map(
           (b: any) =>
-            `<div class="stat-row"><span>${esc(blockKind(b.kind))} · ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
+            `<div class="stat-row"><span>${esc(blockKind(b.kind))} - ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
         )
         .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
@@ -1030,13 +1030,13 @@ async function admin() {
         r.users
           .map(
             (u: any) =>
-              `<div class="panel"><p>${esc(u.email)} · ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">Khóa tất cả link của tài khoản</button></div>`,
+              `<div class="panel"><p>${esc(u.email)} - ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">Khóa tất cả link của tài khoản</button></div>`,
           )
           .join("") +
           r.links
             .map(
               (l: any) =>
-                `<div class="link-card"><div><strong>${esc(l.slug)} · ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
+                `<div class="link-card"><div><strong>${esc(l.slug)} - ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
             )
             .join("") ||
         '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';

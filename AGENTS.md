@@ -51,6 +51,7 @@
 ## VIETNAMESE UX WRITING RULES
 
 - Viết tiếng Việt tự nhiên, câu ngắn và rõ nghĩa. Ưu tiên sự rõ ràng hơn hoa mỹ.
+- Dùng dấu gạch ngang (-) để phân tách tiêu đề và các thông tin trên giao diện.
 - Nội dung giới thiệu và lời xưng hô dùng “oh.io.vn” hoặc cách viết trung tính;
   không dùng tên riêng của chủ dự án để tự giới thiệu dịch vụ.
 - Giữ đúng tên chủ tài khoản trong thông tin chuyển khoản và tên chủ bản quyền
