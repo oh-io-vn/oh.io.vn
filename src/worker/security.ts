@@ -75,25 +75,55 @@ export async function verifyTurnstile(
     c.env.TURNSTILE_SECRET_KEY?.startsWith("1x000")
   )
     return false;
-  const result = await fetch(
-    "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-    {
-      method: "POST",
-      body: new URLSearchParams({
-        secret: c.env.TURNSTILE_SECRET_KEY,
-        response: token,
-        ...(c.req.header("CF-Connecting-IP")
-          ? { remoteip: c.req.header("CF-Connecting-IP")! }
-          : {}),
-      }),
-      signal: AbortSignal.timeout(8000),
-    },
-  );
-  const data = (await result.json()) as {
-    success: boolean;
+  let data: {
+    success?: boolean;
     hostname?: string;
     action?: string;
+    "error-codes"?: string[];
   };
+  try {
+    const result = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: new URLSearchParams({
+          secret: c.env.TURNSTILE_SECRET_KEY,
+          response: token,
+          ...(c.req.header("CF-Connecting-IP")
+            ? { remoteip: c.req.header("CF-Connecting-IP")! }
+            : {}),
+        }),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!result.ok) throw new Error("Siteverify unavailable");
+    data = await result.json();
+    if (!data || typeof data.success !== "boolean")
+      throw new Error("Invalid Siteverify response");
+  } catch {
+    console.warn("verification_service_failed", {
+      reason: "network_or_response",
+    });
+    throw new HTTPException(503, {
+      message: "Dịch vụ xác minh đang bận. Vui lòng thử lại sau ít phút.",
+    });
+  }
+  if (
+    data["error-codes"]?.some((code) =>
+      [
+        "internal-error",
+        "missing-input-secret",
+        "invalid-input-secret",
+      ].includes(code),
+    )
+  ) {
+    console.warn("verification_service_failed", {
+      reason: "provider_or_configuration",
+    });
+    throw new HTTPException(503, {
+      message: "Dịch vụ xác minh đang bận. Vui lòng thử lại sau ít phút.",
+    });
+  }
   return (
     data.success &&
     (c.env.ENVIRONMENT === "development" ||

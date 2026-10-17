@@ -1,4 +1,5 @@
 import "./styles.css";
+import { VerificationGate } from "./verification";
 type LinkData = {
   slug: string;
   label: string | null;
@@ -22,9 +23,10 @@ type Me = {
 };
 declare global {
   interface Window {
-    turnstile: {
+    turnstile?: {
       render: (node: HTMLElement, options: Record<string, unknown>) => string;
       reset: (id: string) => void;
+      execute: (id: string) => void;
     };
   }
 }
@@ -133,8 +135,64 @@ async function account() {
 async function home() {
   const form = $<HTMLFormElement>("#shorten-form");
   if (!form) return;
-  let token = "",
-    widget = "";
+  const verification = new VerificationGate();
+  let widget: string | undefined;
+  let scriptLoad: Promise<void> | null = null;
+  let restartNeeded = false;
+  let challengeRunning = false;
+  let verificationFailures = 0;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  const retry = $<HTMLButtonElement>("#retry-verification");
+  const verificationError = (text: string) => {
+    clearTimeout(retryTimer);
+    challengeRunning = false;
+    verification.fail(text);
+    retry.hidden = false;
+    message("#verification-message", text, true);
+  };
+  function loadVerificationScript(): Promise<void> {
+    if (typeof window.turnstile?.render === "function")
+      return Promise.resolve();
+    if (scriptLoad) return scriptLoad;
+    scriptLoad = new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      const timer = setTimeout(() => {
+        script.remove();
+        scriptLoad = null;
+        reject(
+          new Error(
+            "Không tải được xác minh. Hãy kiểm tra kết nối rồi thử lại.",
+          ),
+        );
+      }, 15000);
+      const finish = (error?: Error) => {
+        clearTimeout(timer);
+        script.onload = script.onerror = null;
+        if (error) {
+          script.remove();
+          scriptLoad = null;
+          reject(error);
+        } else resolve();
+      };
+      script.src =
+        "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async = true;
+      script.onload = () =>
+        finish(
+          typeof window.turnstile?.render === "function"
+            ? undefined
+            : new Error("Chưa khởi tạo được xác minh. Vui lòng thử lại."),
+        );
+      script.onerror = () =>
+        finish(
+          new Error(
+            "Không tải được xác minh. Hãy kiểm tra kết nối rồi thử lại.",
+          ),
+        );
+      document.head.append(script);
+    });
+    return scriptLoad;
+  }
   let loginHint = me.user
     ? "Link này thuộc tài khoản của bạn. Thời hạn: 12 tháng không hoạt động."
     : "Link khách tồn tại 3 tháng không hoạt động và không thể quản lý sau khi tạo.";
@@ -143,6 +201,79 @@ async function home() {
     $("#guest-hint").textContent = loginHint;
   }
   const config = await api("/api/config");
+  async function initializeWidget() {
+    if (widget !== undefined) return;
+    await loadVerificationScript();
+    if (widget !== undefined) return;
+    widget = window.turnstile!.render($("#verification-widget"), {
+      sitekey: config.siteKey,
+      action: "create",
+      appearance: "execute",
+      execution: "execute",
+      size:
+        $("#verification-widget").clientWidth < 300 ? "compact" : "flexible",
+      theme: "light",
+      language: "vi",
+      retry: "never",
+      "refresh-expired": "auto",
+      "refresh-timeout": "auto",
+      callback: (token: string) => {
+        challengeRunning = false;
+        clearTimeout(retryTimer);
+        verificationFailures = 0;
+        verification.accept(token);
+        restartNeeded = false;
+        retry.hidden = true;
+        message("#verification-message", "");
+      },
+      "expired-callback": () => {
+        verification.invalidate();
+        message("#verification-message", "Đang làm mới xác minh…");
+      },
+      "timeout-callback": () =>
+        verificationError("Xác minh đã hết thời gian. Hãy thử xác minh lại."),
+      "error-callback": (code: string) => {
+        // Only the public error code is logged, never a token or visitor details.
+        console.warn("verification_failed", code);
+        // One recovery attempt handles transient failures without an endless loop.
+        // Configuration errors need an operator, not repeated challenges.
+        if (++verificationFailures === 1 && /^(300|600|200500)/.test(code)) {
+          message(
+            "#verification-message",
+            "Xác minh bị gián đoạn. Đang thử lại…",
+          );
+          retryTimer = setTimeout(() => {
+            if (widget !== undefined) {
+              window.turnstile!.reset(widget);
+              window.turnstile!.execute(widget);
+            }
+          }, 2000);
+          return;
+        }
+        verificationError(
+          "Chưa xác minh được trình duyệt. Hãy thử xác minh lại; địa chỉ đã nhập được giữ nguyên.",
+        );
+      },
+    });
+  }
+  async function startVerification() {
+    clearTimeout(retryTimer);
+    verificationFailures = 0;
+    verification.invalidate();
+    restartNeeded = false;
+    challengeRunning = true;
+    retry.hidden = true;
+    message("#verification-message", "Đang xác minh trình duyệt…");
+    await initializeWidget();
+    window.turnstile!.reset(widget!);
+    window.turnstile!.execute(widget!);
+  }
+  retry.onclick = () => {
+    message("#form-message", "");
+    void startVerification().catch((error: Error) =>
+      verificationError(error.message),
+    );
+  };
   if (!config.createEnabled || (!me.user && !config.guestEnabled)) {
     message(
       "#service-notice",
@@ -160,40 +291,9 @@ async function home() {
     form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled =
       true;
   } else {
-    const script = document.createElement("script");
-    script.src =
-      "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-    script.async = true;
-    script.onload = () => {
-      widget = window.turnstile.render($("#turnstile"), {
-        sitekey: config.siteKey,
-        action: "create",
-        appearance: "interaction-only",
-        theme: "light",
-        language: "vi",
-        callback: (t: string) => {
-          token = t;
-          message("#verification-message", "");
-        },
-        "expired-callback": () => {
-          token = "";
-        },
-        "error-callback": () => {
-          token = "";
-          message(
-            "#verification-message",
-            "Xác minh cho lần tạo tiếp theo chưa sẵn sàng. Bạn có thể tải lại trang để thử lại; link đã tạo vẫn sử dụng được.",
-          );
-        },
-      });
-    };
-    script.onerror = () =>
-      message(
-        "#verification-message",
-        "Không tải được xác minh. Hãy kiểm tra kết nối.",
-        true,
-      );
-    document.head.append(script);
+    void initializeWidget().catch((error: Error) =>
+      verificationError(error.message),
+    );
   }
   if (new URLSearchParams(location.search).has("error"))
     message(
@@ -203,22 +303,24 @@ async function home() {
     );
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    message("#form-message", "");
-    if (!token) {
-      message(
-        "#form-message",
-        "Vui lòng chờ xác minh hoàn tất rồi thử lại.",
-        true,
-      );
-      return;
-    }
     const button = form.querySelector<HTMLButtonElement>(
       "button[type=submit]",
     )!;
+    if (button.disabled) return;
+    message("#form-message", "");
     button.disabled = true;
-    const values = new FormData(form);
-    const fixed = String(values.get("fixed_expires_at") ?? "");
+    button.textContent = verification.ready
+      ? "Đang tạo link…"
+      : "Đang xác minh…";
+    form.setAttribute("aria-busy", "true");
     try {
+      if (!verification.ready && !challengeRunning) await startVerification();
+      const token = await verification.take();
+      restartNeeded = true;
+      if (!form.reportValidity()) return;
+      button.textContent = "Đang tạo link…";
+      const values = new FormData(form);
+      const fixed = String(values.get("fixed_expires_at") ?? "");
       const result = await api("/api/links", {
         method: "POST",
         body: JSON.stringify({
@@ -238,11 +340,12 @@ async function home() {
       $("#copy-result").onclick = () =>
         copy(result.url, $<HTMLButtonElement>("#copy-result"));
     } catch (e) {
-      message("#form-message", (e as Error).message, true);
+      if (!restartNeeded) verificationError((e as Error).message);
+      else message("#form-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
-      token = "";
-      if (widget) window.turnstile.reset(widget);
+      button.textContent = "Rút gọn link";
+      form.removeAttribute("aria-busy");
     }
   });
 }

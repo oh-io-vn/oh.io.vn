@@ -28,6 +28,16 @@ npx wrangler d1 execute oh-io-vn --local --command "UPDATE policy SET automatic_
 
 Không chạy lệnh mô phỏng trên database thật. Test keys Turnstile chỉ dành cho development; production từ chối test secret. Không có tài khoản hay đường dẫn bỏ qua Google trong mã được phát hành.
 
+### Turnstile và biểu mẫu tạo link
+
+Widget Managed dùng duy nhất hostname `oh.io.vn` và action `create`; máy chủ phải kiểm tra cả hai khi Siteverify thành công. Người dùng không cần đăng nhập để được xác minh và tạo link khách. Dùng `execution: execute` và `appearance: execute`: nạp SDK trước, bắt đầu xác minh khi bấm tạo link hoặc thử lại, không chạy thử thách liên tục khi chỉ đọc trang.
+
+Biểu mẫu chờ callback trong tối đa 60 giây, khóa nút gửi để không tạo trùng, và chỉ dùng token một lần. Token cũ hơn 290 giây không được gửi. SDK tự làm mới khi hết hạn; token đã dùng được reset ở lần tạo tiếp theo, tránh hiển thị lỗi xác minh mới ngay trên kết quả vừa tạo thành công. Khi lỗi tạm thời thuộc nhóm 300/600/200500, thử reset tự động một lần sau 2 giây; sau đó hiển thị nút thử lại tại chỗ, giữ nguyên URL. Không lặp vô hạn hoặc bỏ qua Siteverify.
+
+Khi không tải được SDK trong 15 giây hoặc tải lỗi, cho thử tải lại ngay trên trang. Không đặt ID phần tử là `turnstile` và không chỉ kiểm tra biến global có tồn tại: phải có API `render`, tránh nhầm phần tử HTML với SDK do named access của trình duyệt. Lỗi mạng/HTTP/phản hồi không hợp lệ từ Siteverify và lỗi nhà cung cấp/cấu hình trả 503; token không hợp lệ trả 400. Log chỉ có mã lỗi hoặc nhóm nguyên nhân, không token/secret/IP.
+
+Nếu tiếp tục gặp 300030, kiểm tra bằng [công cụ chẩn đoán Cloudflare](https://debug.challenges.cloudflare.com/) và đối chiếu [mã lỗi chính thức](https://developers.cloudflare.com/turnstile/troubleshooting/client-side-errors/error-codes/). Kiểm tra sitekey, hostname và CSP trước khi quy nguyên nhân cho trình duyệt. Không thay sitekey test, tắt xác minh hoặc cấp đường bỏ qua ở production.
+
 ```powershell
 npm run typecheck
 npm test

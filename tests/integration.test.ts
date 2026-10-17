@@ -128,6 +128,145 @@ describe("D1 và đường chuyển hướng thật", () => {
       ).headers.get("Location"),
     ).toBe("https://example.com/api-test");
   });
+  it("production tạo link khách từ token hợp lệ và từ chối token dùng lại", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({
+          success: true,
+          hostname: "oh.io.vn",
+          action: "create",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          success: false,
+          "error-codes": ["timeout-or-duplicate"],
+        }),
+      );
+    const production = {
+      ...env,
+      ENVIRONMENT: "production",
+      APP_ORIGIN: "https://oh.io.vn",
+      TURNSTILE_SECRET_KEY: "unit-fixture-not-a-provider-secret",
+    };
+    const request = () =>
+      new Request("https://oh.io.vn/api/links", {
+        method: "POST",
+        headers: {
+          Origin: "https://oh.io.vn",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          target: "https://example.com/guest",
+          turnstile: "single-use-token",
+        }),
+      });
+    const created = await worker.fetch(
+      request(),
+      production,
+      createExecutionContext(),
+    );
+    expect(created.status).toBe(201);
+    const body = (await created.json()) as { slug: string; months: number };
+    expect(body.months).toBe(3);
+    expect(
+      (await env.DB.prepare("SELECT owner_id FROM links WHERE slug=?")
+        .bind(body.slug)
+        .first())!.owner_id,
+    ).toBeNull();
+    expect(
+      (await worker.fetch(request(), production, createExecutionContext()))
+        .status,
+    ).toBe(400);
+    expect(
+      (await env.DB.prepare("SELECT count(*) AS count FROM links").first<{
+        count: number;
+      }>())!.count,
+    ).toBe(1);
+  });
+  it.each([
+    { success: false, "error-codes": ["timeout-or-duplicate"] },
+    { success: true, hostname: "wrong.example", action: "create" },
+    { success: true, hostname: "oh.io.vn", action: "wrong-action" },
+  ])(
+    "production không tạo link khi Turnstile không hợp lệ: %j",
+    async (verification) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        Response.json(verification),
+      );
+      const result = await worker.fetch(
+        new Request("https://oh.io.vn/api/links", {
+          method: "POST",
+          headers: {
+            Origin: "https://oh.io.vn",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: "https://example.com/page",
+            turnstile: "invalid-token",
+          }),
+        }),
+        {
+          ...env,
+          ENVIRONMENT: "production",
+          APP_ORIGIN: "https://oh.io.vn",
+          TURNSTILE_SECRET_KEY: "unit-fixture-not-a-provider-secret",
+        },
+        createExecutionContext(),
+      );
+      expect(result.status).toBe(400);
+      expect(
+        (await env.DB.prepare("SELECT count(*) AS count FROM links").first<{
+          count: number;
+        }>())!.count,
+      ).toBe(0);
+    },
+  );
+  it.each(["network", "http", "malformed", "provider"])(
+    "lỗi dịch vụ Turnstile trả 503, không tạo link: %s",
+    async (kind) => {
+      const remote = vi.spyOn(globalThis, "fetch");
+      if (kind === "network")
+        remote.mockRejectedValue(new Error("connection failed"));
+      else if (kind === "http")
+        remote.mockResolvedValue(new Response("unavailable", { status: 503 }));
+      else if (kind === "malformed")
+        remote.mockResolvedValue(Response.json({}));
+      else
+        remote.mockResolvedValue(
+          Response.json({ success: false, "error-codes": ["internal-error"] }),
+        );
+      const result = await worker.fetch(
+        new Request("https://oh.io.vn/api/links", {
+          method: "POST",
+          headers: {
+            Origin: "https://oh.io.vn",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            target: "https://example.com/page",
+            turnstile: "unused-token",
+          }),
+        }),
+        {
+          ...env,
+          ENVIRONMENT: "production",
+          APP_ORIGIN: "https://oh.io.vn",
+          TURNSTILE_SECRET_KEY: "unit-fixture-not-a-provider-secret",
+        },
+        createExecutionContext(),
+      );
+      expect(result.status).toBe(503);
+      expect(((await result.json()) as { error: string }).error).toContain(
+        "Dịch vụ xác minh",
+      );
+      expect(
+        (await env.DB.prepare("SELECT count(*) AS count FROM links").first<{
+          count: number;
+        }>())!.count,
+      ).toBe(0);
+    },
+  );
   it("tài khoản chỉ sửa/xóa link của chính mình và mã không thay đổi", async () => {
     await insert("owner-link");
     const token = "b".repeat(64);
