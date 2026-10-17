@@ -1,5 +1,87 @@
 # Kiểm tra chức năng và giao diện oh.io.vn
 
+## Audit và cải thiện UI/UX tiếp theo, local ngày 17/10/2026
+
+Lượt này đã sửa source, build, chạy Worker local tách biệt tại cổng 8791, chụp ảnh,
+xem ảnh và kiểm tra lại sau chỉnh sửa. **Chưa triển khai các thay đổi trong lượt này.**
+Các mục production ở phía dưới là hồ sơ của các lượt trước, không phải kết quả
+phát hành của thay đổi hiện tại.
+
+### Audit và thay đổi đã xác minh
+
+Không phát hiện P0 trong phạm vi kiểm tra. Giao diện ban đầu đã có bảng màu,
+font, navigation và bố cục responsive nhất quán. Giữ những phần này, không thay
+framework hoặc thêm các khối marketing. Sau 5 giây nhìn trang chủ, người xem
+nhận ra công cụ rút gọn link; vấn đề chính là thứ tự và phản hồi khi thao tác.
+
+| Mức | Bằng chứng trước sửa                                                             | Kết quả sau sửa                                                                   |
+| --- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| P1  | Mẫu HTML của mã link không hợp lệ trong Chrome; mã `ab` không được chặn ở client | Sửa `pattern`, kiểm tra rõ định dạng, mở phần tùy chỉnh và focus trường lỗi       |
+| P1  | Thao tác khóa tài khoản gửi API ngay, chưa có dialog xác nhận                    | Xác nhận có đối tượng, hậu quả, nút Hủy và trạng thái đang lưu                    |
+| P1  | Form quản trị hiện trước khi tải xong giá trị cấu hình                           | Chỉ hiện khi tải thành công, lỗi có cách thử lại                                  |
+| P1  | Gửi tìm kiếm trong lúc tải danh sách đầu tiên chưa có handler                    | Gắn handler trước khi tải, giữ query trong URL và chống kết quả cũ ghi đè         |
+| P2  | Mobile có đoạn hướng dẫn dài chen giữa URL và nút rút gọn                        | Đưa nút sát trường nhập; hướng dẫn nằm sau hành động chính                        |
+| P2  | Thiếu phản hồi rõ khi tìm kiếm, lưu, xóa hoặc thao tác quản trị ở cuối trang     | Có trạng thái gần thao tác, xác nhận kết quả và phân biệt lỗi ghi với lỗi tải lại |
+| P2  | Hộp xóa thiếu đối tượng; focus bị mất khi render lại danh sách                   | Hiện URL/tên link, trả focus tới thao tác còn tồn tại                             |
+| P2  | URL dùng dấu chấm giữa; nhãn nút và ngày thống kê chưa nhất quán                 | Hiện `oh.io.vn/mã`, dùng nhãn cụ thể và ngày tiếng Việt                           |
+
+Nội dung được chỉnh gồm mô tả trang chủ, hướng dẫn tài khoản, nhãn “Rút gọn link”,
+“Tìm link”, “Lưu thay đổi”, hướng dẫn mã tùy chỉnh, lỗi theo trường, thông báo
+đang xử lý/kết quả và nội dung xác nhận quản trị. Có favicon từ logo hiện có.
+Nút mở đóng góp dùng phần tử button. Sao chép nhiều lần liên tiếp vẫn khôi phục
+đúng nhãn hiển thị và accessible name.
+
+### Kiểm thử
+
+- `npm run typecheck`: đạt.
+- `npm test`: 53 kiểm thử Vitest và 1 kiểm thử Node về backup đạt, tổng 54.
+- `npm run build`: đạt TypeScript, Vite và Wrangler dry-run, không phát hành.
+- Prettier kiểm tra source thay đổi: đạt. Repo chưa có ESLint hoặc script lint;
+  kết quả Prettier chỉ xác nhận định dạng, không phải kiểm tra lint ngữ nghĩa.
+- `node scripts/test-ui.mjs`: đạt 129 phép đo bố cục và các assertion chức năng.
+  Chạy Chrome headless với Playwright có sẵn, không cài dependency mới.
+- Bảy trang, cả phiên khách và tài khoản giả, tại 320, 390, 768, 1280, 1440px;
+  thêm chiều cao 390px và chữ tăng 200%. Không phát hiện tràn ngang.
+- Tạo link khách/tài khoản, tùy chỉnh mã, validation, clipboard, tìm kiếm bằng
+  Enter, xóa tìm kiếm, trạng thái rỗng, sửa/lưu, xóa/hủy, thống kê, tải Excel,
+  điều hướng bằng link, sao chép email báo cáo và đóng góp đều được thao tác.
+- Các regression gồm tìm khi tải chậm, giữ kết quả cũ khi tìm lỗi, focus sau lưu,
+  cấu hình quản trị tải chậm/lỗi/thử lại, xác nhận khóa/hủy/mở khóa, ngăn đóng
+  dialog đang ghi, và ghi thành công nhưng tải lại thất bại.
+- Skip link, Escape, focus trở về nút mở, reduced motion, và các cặp màu token
+  chữ chính/nền/action/error đạt kiểm tra. Đây không phải chứng nhận WCAG đầy đủ.
+- Không có JavaScript exception hoặc lỗi console ngoài dự kiến. Năm thông báo
+  HTTP 503 trong log là các lỗi được cố ý tạo để thử phản hồi và khả năng thử lại.
+- Smoke test không mock: cả bảy trang trên Worker local trả HTTP 200. Không ghi
+  dữ liệu trong lượt smoke test này.
+- Đối chiếu source: giữ toàn bộ ID DOM và tên trường cũ. Nội dung body của privacy
+  và terms giống nguyên bản. Worker, shared rules, migration, dependency và lockfile
+  không đổi.
+
+### Visual review và bằng chứng
+
+Đã chụp 42 ảnh mốc cho bảy trang × ba kích thước × hai trạng thái tài khoản.
+Sau sửa, đã xem ảnh của các nhóm trang tạo link, quản lý, quản trị, thông tin/pháp
+lý và hộp thoại. Vòng xem tiếp theo phát hiện thông báo loading còn sót sau lỗi
+quản trị và dòng mã link lặp trong thống kê; đã sửa, chụp và xem lại.
+
+- Mốc trước sửa: `.local/ui-ux/before/`.
+- Ảnh sau vòng đầu: `.local/ui-ux/after-v1/`.
+- Ảnh và kết quả cuối: `.local/ui-ux/after/`, `results.json`.
+- So sánh trang chủ: `guest-home-1440.png`, `guest-home-768.png`,
+  `guest-home-390.png` trong thư mục before/after.
+- Ví dụ trạng thái mới: `invalid-slug-mobile.png`, `admin-confirm-mobile.png`,
+  `admin-load-error-mobile.png`, `search-error-mobile.png`, `stats-desktop.png`.
+- Runner được lưu trong Git scope: `scripts/test-ui.mjs`. Hướng dẫn chạy nằm
+  trong `AGENTS.md`. Ảnh, cấu hình và dữ liệu local được Git bỏ qua.
+- Skills được cài vào `.agents/skills/`; nguồn và commit ghi trong
+  `.agents/skills/SOURCES.md`. `AGENTS.md` và `DESIGN_SYSTEM.md` lưu quy tắc lâu dài.
+
+Các thao tác ghi trong browser dùng API và Turnstile giả, không thay đổi dữ liệu
+production. Lượt này chưa kiểm tra lại Google OAuth/Turnstile production, Safari,
+thiết bị iOS/Android thật hoặc screen reader. Không phát hiện P0/P1 còn lại trong
+phạm vi các ca đã chạy; các giới hạn này vẫn cần được tính đến khi phát hành.
+
 ## Triển khai và kiểm tra production ngày 17/10/2026
 
 - Commit giao diện: `6112ca9f3a3660c1e8d7036dfeeabb2102224529`, đã push lên
@@ -115,33 +197,33 @@ Bổ sung theo yêu cầu bỏ ảnh đóng góp: hộp thoại chỉ còn thôn
 
 Chrome chạy bản build thật trong iframe cùng origin; API qua Worker/D1 local, tài khoản và dữ liệu giả. Scrollbar cổ điển làm viewport nội dung nhỏ hơn khung 15 px trong một số trường hợp. Không coi đây là thiết bị di động thật hoặc Safari.
 
-| Trang | 320 px | 360 px | 390 px | 768 px | 1280 px |
-| --- | --- | --- | --- | --- | --- |
-| Trang chủ có tài khoản | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Link của tôi, mã dài | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Quản trị | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Về dự án | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Quyền riêng tư | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Quy định | Đạt | Đạt | Đạt | Đạt | Đạt |
-| Báo cáo link | Đạt | Đạt | Đạt | Đạt | Đạt |
+| Trang                  | 320 px | 360 px | 390 px | 768 px | 1280 px |
+| ---------------------- | ------ | ------ | ------ | ------ | ------- |
+| Trang chủ có tài khoản | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Link của tôi, mã dài   | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Quản trị               | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Về dự án               | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Quyền riêng tư         | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Quy định               | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
+| Báo cáo link           | Đạt    | Đạt    | Đạt    | Đạt    | Đạt     |
 
 Đạt nghĩa là scrollWidth không vượt clientWidth. Kiểm tra thêm hộp sửa, thống kê, xác nhận xóa/hủy và đóng góp ở 320 × 390; mã/tên dài, tổng 1.234.579 lượt, nút đóng, cuộn dọc và ảnh QR nằm trong khung. Trường nhập ở breakpoint mobile dùng 16 px; các nút điều hướng/thao tác cao tối thiểu 44 px.
 
 ## Chức năng và bằng chứng
 
-| Luồng | Kết quả |
-| --- | --- |
-| Trang công khai/riêng | Production: 7 trang trả 200, dashboard/admin có noindex, nofollow; sitemap chỉ chứa trang công khai. |
-| Google login/logout | Đã thao tác thành công trên production; đăng xuất về giao diện khách. |
-| Link khách | Bản cuối production tạo eg9568us sau khi đăng xuất, không cần tài khoản; thời hạn 3 tháng. |
-| Link tài khoản | Production: tạo huong-dan, sửa target sang repository#readme và tên ghi nhớ; 302 đúng đích, hạn không hoạt động 12 tháng. |
-| Tìm và sao chép | Production: tìm đúng mã, tìm không thấy có thông báo riêng; nút sao chép phản hồi Đã sao chép. |
-| Thống kê/Excel | Production: lượt thử Referer Zalo và User-Agent điện thoại vào đúng nhóm, xuất Excel. Local: workbook mã dài có đúng nguồn/số liệu và không ô công thức. Đây là lượt thử, không phải người dùng thật. |
-| Sửa/hạn cố định | UI local khung thấp: URL nội bộ bị từ chối trong hộp; target/tên/hạn hợp lệ lưu được và hộp đóng. |
-| Xóa/mã không cấp lại | API Worker local: xóa link thử, ngừng redirect, từ chối tạo lại cùng mã. UI kiểm tra mở xác nhận và hủy; không xóa link thật của chủ dự án. |
-| Quản trị | API Worker local: thêm/gỡ domain chặn, từ chối đích bị chặn, tắt/khôi phục thống kê; redirect vẫn chạy khi thống kê tắt. |
-| Quyền riêng tư | Production: API link/thống kê không đăng nhập trả 401, admin trả 403, no-store. Bộ kiểm thử kiểm tra quyền sở hữu, CSRF, quota và sự cố. |
-| Đóng góp/liên hệ | Hộp QR mở/đóng/cuộn được, ảnh gốc giữ đúng SHA-256; email hi@oh.io.vn. Không giao dịch hoặc gửi email trong đợt QA này. |
+| Luồng                 | Kết quả                                                                                                                                                                                               |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trang công khai/riêng | Production: 7 trang trả 200, dashboard/admin có noindex, nofollow; sitemap chỉ chứa trang công khai.                                                                                                  |
+| Google login/logout   | Đã thao tác thành công trên production; đăng xuất về giao diện khách.                                                                                                                                 |
+| Link khách            | Bản cuối production tạo eg9568us sau khi đăng xuất, không cần tài khoản; thời hạn 3 tháng.                                                                                                            |
+| Link tài khoản        | Production: tạo huong-dan, sửa target sang repository#readme và tên ghi nhớ; 302 đúng đích, hạn không hoạt động 12 tháng.                                                                             |
+| Tìm và sao chép       | Production: tìm đúng mã, tìm không thấy có thông báo riêng; nút sao chép phản hồi Đã sao chép.                                                                                                        |
+| Thống kê/Excel        | Production: lượt thử Referer Zalo và User-Agent điện thoại vào đúng nhóm, xuất Excel. Local: workbook mã dài có đúng nguồn/số liệu và không ô công thức. Đây là lượt thử, không phải người dùng thật. |
+| Sửa/hạn cố định       | UI local khung thấp: URL nội bộ bị từ chối trong hộp; target/tên/hạn hợp lệ lưu được và hộp đóng.                                                                                                     |
+| Xóa/mã không cấp lại  | API Worker local: xóa link thử, ngừng redirect, từ chối tạo lại cùng mã. UI kiểm tra mở xác nhận và hủy; không xóa link thật của chủ dự án.                                                           |
+| Quản trị              | API Worker local: thêm/gỡ domain chặn, từ chối đích bị chặn, tắt/khôi phục thống kê; redirect vẫn chạy khi thống kê tắt.                                                                              |
+| Quyền riêng tư        | Production: API link/thống kê không đăng nhập trả 401, admin trả 403, no-store. Bộ kiểm thử kiểm tra quyền sở hữu, CSRF, quota và sự cố.                                                              |
+| Đóng góp/liên hệ      | Hộp QR mở/đóng/cuộn được, ảnh gốc giữ đúng SHA-256; email hi@oh.io.vn. Không giao dịch hoặc gửi email trong đợt QA này.                                                                               |
 
 ## Kiểm tra mã và giới hạn
 

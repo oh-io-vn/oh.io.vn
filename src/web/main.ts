@@ -58,10 +58,20 @@ const localDate = (n: number | null) =>
         .toISOString()
         .slice(0, 16)
     : "";
+const calendarDate = (day: string) =>
+  new Intl.DateTimeFormat("vi-VN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(day));
 const linkStatus = (status: string) =>
-  ({ active: "Đang hoạt động", blocked: "Đã khóa", expired: "Hết hạn", deleted: "Đã xóa" })[
-    status
-  ] ?? status;
+  ({
+    active: "Đang hoạt động",
+    blocked: "Đã khóa",
+    expired: "Hết hạn",
+    deleted: "Đã xóa",
+  })[status] ?? status;
 const blockKind = (kind: string) =>
   ({ host: "Tên miền", url: "Địa chỉ web" })[kind] ?? kind;
 const adminAction = (action: string) =>
@@ -87,6 +97,10 @@ function message(selector: string, value: string, error = false) {
     el.classList.toggle("error", error);
   }
 }
+const copyFeedback = new WeakMap<
+  HTMLButtonElement,
+  { html: string; label: string | null; timer?: ReturnType<typeof setTimeout> }
+>();
 async function copy(
   value: string,
   button: HTMLButtonElement,
@@ -94,11 +108,20 @@ async function copy(
 ) {
   try {
     await copyText(value);
-    const old = button.innerHTML;
+    const previous = copyFeedback.get(button) ?? {
+      html: button.innerHTML,
+      label: button.getAttribute("aria-label"),
+    };
+    clearTimeout(previous.timer);
     button.textContent = "Đã sao chép";
-    setTimeout(() => {
-      button.innerHTML = old;
+    button.setAttribute("aria-label", "Đã sao chép");
+    previous.timer = setTimeout(() => {
+      button.innerHTML = previous.html;
+      if (previous.label === null) button.removeAttribute("aria-label");
+      else button.setAttribute("aria-label", previous.label);
+      copyFeedback.delete(button);
     }, 1800);
+    copyFeedback.set(button, previous);
   } catch {
     message(
       errorSelector ??
@@ -167,6 +190,11 @@ async function home() {
   const form = $<HTMLFormElement>("#shorten-form");
   if (!form) return;
   const target = $<HTMLInputElement>("#target");
+  const slug = $<HTMLInputElement>("#slug");
+  const options = $<HTMLDetailsElement>("#custom-options");
+  const submit = form.querySelector<HTMLButtonElement>(
+    'button[type="submit"]',
+  )!;
   const resultBox = $("#result");
   const setTargetError = (text: string) => {
     message("#target-error", text, !!text);
@@ -195,9 +223,26 @@ async function home() {
       target.focus();
       return false;
     }
+    if (slug.value && !/^[a-zA-Z0-9_-]{3,64}$/.test(slug.value)) {
+      options.open = true;
+      message(
+        "#slug-error",
+        slug.value.length < 3
+          ? "Mã link cần ít nhất 3 ký tự."
+          : "Chỉ dùng chữ không dấu, số, dấu gạch ngang hoặc gạch dưới.",
+      );
+      slug.setAttribute("aria-invalid", "true");
+      slug.focus();
+      return false;
+    }
     if (!form.checkValidity()) {
-      message("#form-message", "Kiểm tra mã link và ngày hết hạn rồi thử lại.", true);
-      form.querySelector<HTMLElement>(":invalid")?.focus();
+      options.open = true;
+      message(
+        "#form-message",
+        "Kiểm tra trường được đánh dấu rồi thử lại.",
+        true,
+      );
+      form.reportValidity();
       return false;
     }
     return true;
@@ -205,6 +250,10 @@ async function home() {
   target.addEventListener("input", () => {
     setTargetError("");
     resultBox.hidden = true;
+  });
+  slug.addEventListener("input", () => {
+    message("#slug-error", "");
+    slug.removeAttribute("aria-invalid");
   });
   const verification = new VerificationGate();
   let widget: string | undefined;
@@ -269,6 +318,7 @@ async function home() {
     $("#guest-hint").hidden = true;
   }
   const config = await api("/api/config");
+  submit.textContent = "Rút gọn link";
   async function initializeWidget() {
     if (widget !== undefined) return;
     await loadVerificationScript();
@@ -357,6 +407,7 @@ async function home() {
     form.querySelector<HTMLButtonElement>("button[type=submit]")!.disabled =
       true;
   } else {
+    submit.disabled = false;
     void initializeWidget().catch((error: Error) =>
       verificationError(error.message),
     );
@@ -403,7 +454,7 @@ async function home() {
       link.textContent = result.url;
       resultBox.hidden = false;
       $("#result-expiry").textContent =
-        `Hết hạn ${date(result.expires_at)}.${me.user ? "" : " Hãy sao chép và lưu link này; bạn sẽ không tìm lại được sau khi rời trang."}`;
+        `Hết hạn ${date(result.expires_at)}.${me.user ? "" : " Hãy sao chép và lưu link trước khi rời trang. Link khách không có trong danh sách quản lý."}`;
       $("#copy-result").onclick = () =>
         copy(result.url, $<HTMLButtonElement>("#copy-result"));
       resultBox.focus({ preventScroll: true });
@@ -419,11 +470,19 @@ async function home() {
         ) {
           setTargetError(error);
           target.focus();
-        } else message("#form-message", error, true);
+        } else if (/^Mã (link |này )/.test(error)) {
+          options.open = true;
+          message("#slug-error", error);
+          slug.setAttribute("aria-invalid", "true");
+          slug.focus();
+        } else {
+          if (error.startsWith("Ngày hết hạn")) options.open = true;
+          message("#form-message", error, true);
+        }
       }
     } finally {
       button.disabled = false;
-      button.textContent = "Rút gọn";
+      button.textContent = "Rút gọn link";
       form.removeAttribute("aria-busy");
     }
   });
@@ -435,48 +494,69 @@ let links: LinkData[] = [],
 let detailRequest = 0;
 let listRequest = 0;
 let expiryHold = false;
+const expiryHoldNotice =
+  "Tạm dừng tính hạn không hoạt động trong lúc kiểm tra số liệu truy cập. Ngày hết hạn cố định vẫn giữ nguyên.";
 function card(l: LinkData) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link không có tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn · ${esc(l.slug)}</a><div class="link-target">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">Hết hạn ${date(l.expires_at)}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
+  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">Sao chép</button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">Sửa</button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">Thống kê</button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">Xóa</button></div></article>`;
 }
 async function loadLinks(append = false) {
   const more = $<HTMLButtonElement>("#load-more");
-  if (append && more.disabled) return;
+  if (append && more.disabled) return false;
   const request = ++listRequest;
   more.disabled = true;
+  more.textContent = append ? "Đang tải…" : "Xem thêm";
+  $("#link-list").setAttribute("aria-busy", "true");
+  message("#list-status", append ? "Đang tải thêm link…" : "Đang tìm link…");
   try {
     const q = $<HTMLInputElement>("#search").value;
+    $("#clear-search").hidden = !q;
     const data = await api(
       `/api/links?q=${encodeURIComponent(q)}${append && next ? "&cursor=" + next : ""}`,
     );
-    if (request !== listRequest) return;
+    if (request !== listRequest) return false;
     links = append ? [...links, ...data.links] : data.links;
     expiryHold = !!data.expiryHeld;
     next = data.next;
     $("#load-more").hidden = !next;
-    $(".toolbar").hidden = !links.length && !q.trim();
+    $("#link-search").hidden = !links.length && !q.trim();
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
       : q.trim()
         ? '<div class="empty"><h2>Không tìm thấy link</h2><p>Thử tìm theo tên hoặc mã link khác.</p></div>'
         : '<div class="empty"><h2>Chưa có link nào</h2><p>Tạo link để xem và quản lý tại đây.</p><a class="secondary" href="/">Tạo link đầu tiên</a></div>';
     message(
-      "#dashboard-notice",
-      expiryHold
-        ? "Tạm dừng tính hạn không hoạt động trong lúc kiểm tra số liệu truy cập. Ngày hết hạn cố định vẫn giữ nguyên."
-        : "",
+      "#list-status",
+      links.length
+        ? `Đang hiển thị ${links.length.toLocaleString("vi-VN")} link${next ? ". Chọn Xem thêm để tải tiếp." : "."}`
+        : q.trim()
+          ? "Không có link khớp với tìm kiếm."
+          : "",
     );
+    message("#dashboard-notice", expiryHold ? expiryHoldNotice : "");
+    return true;
   } catch (e) {
     if (request === listRequest) {
       message("#dashboard-notice", (e as Error).message, true);
+      message(
+        "#list-status",
+        links.length
+          ? "Chưa tải được kết quả mới. Danh sách bên dưới vẫn là kết quả trước đó."
+          : "",
+      );
       if (!append && !links.length) {
         $("#link-list").innerHTML =
           '<div class="empty" role="status"><h2>Không tải được link</h2><p>Kiểm tra mạng rồi tải lại danh sách.</p><button id="retry-links" class="secondary" type="button">Tải lại danh sách</button></div>';
         $("#retry-links").addEventListener("click", () => void loadLinks());
       }
     }
+    return false;
   } finally {
-    if (request === listRequest) more.disabled = false;
+    if (request === listRequest) {
+      more.disabled = false;
+      more.textContent = "Xem thêm";
+      $("#link-list").removeAttribute("aria-busy");
+    }
   }
 }
 async function dashboard() {
@@ -484,14 +564,27 @@ async function dashboard() {
   if (!me.user) {
     $("#link-list").innerHTML =
       '<div class="empty"><h2>Đăng nhập để quản lý link</h2><p>Bạn có thể sửa link đã tạo bằng tài khoản và xem thống kê.</p><a class="primary" href="/auth/login">Đăng nhập Google</a></div>';
-    $(".toolbar").hidden = true;
+    $("#link-search").hidden = true;
     return;
   }
-  await loadLinks();
-  $("#search-button").onclick = () => loadLinks();
-  $<HTMLInputElement>("#search").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") loadLinks();
+  const search = $<HTMLInputElement>("#search");
+  search.value = new URLSearchParams(location.search).get("q") ?? "";
+  const searchLinks = () => {
+    const url = new URL(location.href);
+    if (search.value) url.searchParams.set("q", search.value);
+    else url.searchParams.delete("q");
+    history.replaceState(null, "", url);
+    void loadLinks();
+  };
+  $("#link-search").addEventListener("submit", (e) => {
+    e.preventDefault();
+    searchLinks();
   });
+  $("#clear-search").onclick = () => {
+    search.value = "";
+    search.focus();
+    searchLinks();
+  };
   $("#load-more").onclick = () => loadLinks(true);
   $("#link-list").addEventListener("click", async (event) => {
     const b = (event.target as HTMLElement).closest<HTMLButtonElement>(
@@ -514,22 +607,26 @@ async function dashboard() {
         selected.label ?? "";
       (form.elements.namedItem("fixed_expires_at") as HTMLInputElement).value =
         localDate(selected.fixed_expires_at);
-      $("#edit-slug").textContent = selected.slug;
+      $("#edit-slug").textContent = `oh.io.vn/${selected.slug}`;
       message("#edit-message", "");
       $<HTMLDialogElement>("#edit-dialog").showModal();
     }
     if (b.dataset.action === "delete") {
       selected = link;
+      $("#delete-context").textContent =
+        `oh.io.vn/${link.slug}${link.label ? ` — ${link.label}` : ""}`;
       message("#delete-message", "");
       $<HTMLDialogElement>("#delete-dialog").showModal();
     }
     if (b.dataset.action === "stats") {
       b.disabled = true;
+      b.textContent = "Đang tải…";
       try {
         const data = await api<Stats>(`/api/links/${link.slug}/stats`);
         if (request !== detailRequest) return;
         selected = link;
         stats = data;
+        $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
         renderStats(stats);
         message("#stats-message", "");
         $<HTMLDialogElement>("#stats-dialog").showModal();
@@ -538,6 +635,7 @@ async function dashboard() {
           message("#dashboard-notice", (e as Error).message, true);
       } finally {
         b.disabled = false;
+        b.textContent = "Thống kê";
       }
     }
   });
@@ -549,12 +647,14 @@ async function dashboard() {
       'button[type="submit"]',
     )!;
     const f = new FormData(form);
+    const editedSlug = selected!.slug;
     const fixed = String(f.get("fixed_expires_at") ?? "");
     button.disabled = true;
+    button.textContent = "Đang lưu…";
     form.setAttribute("aria-busy", "true");
     message("#edit-message", "");
     try {
-      await api(`/api/links/${selected!.slug}/edit`, {
+      await api(`/api/links/${editedSlug}/edit`, {
         method: "PATCH",
         body: JSON.stringify({
           target: f.get("target"),
@@ -563,31 +663,54 @@ async function dashboard() {
         }),
       });
       $<HTMLDialogElement>("#edit-dialog").close();
-      await loadLinks();
+      const reloaded = await loadLinks();
+      message(
+        "#dashboard-notice",
+        `Đã lưu thay đổi cho oh.io.vn/${editedSlug}.${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
+        !reloaded,
+      );
+      document
+        .querySelector<HTMLButtonElement>(
+          `[data-action="edit"][data-slug="${CSS.escape(editedSlug)}"]`,
+        )
+        ?.focus();
     } catch (e) {
       message("#edit-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
+      button.textContent = "Lưu thay đổi";
       form.removeAttribute("aria-busy");
     }
   });
   $("#confirm-delete").onclick = async () => {
     const button = $<HTMLButtonElement>("#confirm-delete");
     if (button.disabled) return;
+    const deletedSlug = selected!.slug;
     button.disabled = true;
+    button.textContent = "Đang xóa…";
     button.setAttribute("aria-busy", "true");
     message("#delete-message", "");
     try {
-      await api(`/api/links/${selected!.slug}/delete`, {
+      await api(`/api/links/${deletedSlug}/delete`, {
         method: "DELETE",
         body: "{}",
       });
       $<HTMLDialogElement>("#delete-dialog").close();
-      await loadLinks();
+      const reloaded = await loadLinks();
+      message(
+        "#dashboard-notice",
+        `Đã xóa oh.io.vn/${deletedSlug}. Link này không còn hoạt động.${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
+        !reloaded,
+      );
+      const focusTarget = document.querySelector<HTMLElement>(
+        "#link-list button, #link-list a",
+      );
+      focusTarget?.focus();
     } catch (e) {
       message("#delete-message", (e as Error).message, true);
     } finally {
       button.disabled = false;
+      button.textContent = "Xóa link";
       button.removeAttribute("aria-busy");
     }
   };
@@ -597,6 +720,7 @@ async function dashboard() {
     const slug = selected.slug;
     const button = $<HTMLButtonElement>("#export-excel");
     button.disabled = true;
+    button.textContent = "Đang xuất…";
     message("#stats-message", "");
     try {
       const { default: writeXlsxFile } =
@@ -637,15 +761,13 @@ async function dashboard() {
         { data: notes, sheet: "Phạm vi" },
       ]).toFile(`oh-${slug}-${data.since}.xlsx`);
     } catch {
-      message(
-        "#stats-message",
-        "Không xuất được Excel. Hãy thử lại.",
-        true,
-      );
+      message("#stats-message", "Không xuất được Excel. Hãy thử lại.", true);
     } finally {
       button.disabled = false;
+      button.textContent = "Xuất Excel";
     }
   };
+  await loadLinks();
 }
 function renderStats(data: Stats) {
   const total = data.rows.reduce((n, r) => n + r.clicks, 0);
@@ -666,7 +788,7 @@ function renderStats(data: Stats) {
   const days = groups("day").sort(([a], [b]) => a.localeCompare(b));
   const max = Math.max(...days.map(([, n]) => n), 1);
   $("#stats-content").innerHTML =
-    `<p class="small">${esc(selected!.slug)} · Từ ${data.since}</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${esc(days[0][0])}</span><span>${esc(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days)}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice">Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div>` : ""}${days.length ? `<div class="chart" aria-hidden="true">${days.map(([, n]) => `<span style="height:${Math.max(2, (n / max) * 100)}%"></span>`).join("")}</div><div class="chart-axis small"><span>${calendarDate(days[0][0])}</span><span>${calendarDate(days[days.length - 1][0])}</span></div><div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 async function admin() {
   if (!$("#admin-content")) return;
@@ -678,7 +800,7 @@ async function admin() {
     );
     return;
   }
-  $("#admin-content").hidden = false;
+  message("#admin-message", "Đang tải cấu hình và số liệu…");
   const refresh = async () => {
     const data = await api("/api/admin/overview");
     const form = $<HTMLFormElement>("#policy-form");
@@ -730,18 +852,106 @@ async function admin() {
         )
         .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
-  await refresh();
-  const action = async (body: Record<string, unknown>) => {
+  try {
+    await refresh();
+  } catch (error) {
+    message("#admin-message", "");
+    throw error;
+  }
+  $("#admin-content").hidden = false;
+  message("#admin-message", "");
+  let actionPending = false;
+  const action = async (
+    body: Record<string, unknown>,
+    feedback: string,
+    success: string,
+    button: HTMLButtonElement,
+  ) => {
+    if (actionPending) return false;
+    actionPending = true;
+    const label = button.textContent;
+    const controls = [
+      ...$("#admin-content").querySelectorAll<
+        HTMLInputElement | HTMLButtonElement | HTMLSelectElement
+      >("input, button, select"),
+    ];
+    const disabled = controls.map((control) => control.disabled);
+    controls.forEach((control) => {
+      control.disabled = true;
+    });
+    button.disabled = true;
+    button.textContent = "Đang lưu…";
+    button.setAttribute("aria-busy", "true");
+    message(feedback, "Đang lưu thay đổi…");
     try {
       await api("/api/admin/action", {
         method: "POST",
         body: JSON.stringify(body),
       });
-      message("#admin-message", "Đã lưu thay đổi.");
-      await refresh();
+      try {
+        await refresh();
+        message(feedback, success);
+      } catch {
+        message(
+          feedback,
+          `${success} Chưa tải được dữ liệu mới. Hãy tải lại trang để kiểm tra.`,
+          true,
+        );
+      }
+      return true;
     } catch (e) {
-      message("#admin-message", (e as Error).message, true);
+      message(feedback, (e as Error).message, true);
+      return false;
+    } finally {
+      controls.forEach((control, index) => {
+        control.disabled = disabled[index];
+      });
+      button.disabled = false;
+      button.textContent = label;
+      button.removeAttribute("aria-busy");
+      actionPending = false;
     }
+  };
+  const confirmDialog = $<HTMLDialogElement>("#admin-confirm-dialog");
+  const confirmButton = $<HTMLButtonElement>("#confirm-admin-action");
+  const confirmAction = (
+    body: Record<string, unknown>,
+    title: string,
+    subject: string,
+    description: string,
+    feedback: string,
+    success: string,
+    afterSuccess?: () => void,
+  ) => {
+    if (actionPending) return;
+    $("#admin-confirm-title").textContent = title;
+    $("#admin-confirm-subject").textContent = subject;
+    $("#admin-confirm-description").textContent = description;
+    confirmButton.textContent = title.replace(/\?$/, "");
+    message("#admin-confirm-message", "");
+    confirmButton.onclick = async () => {
+      if (
+        await action(body, "#admin-confirm-message", success, confirmButton)
+      ) {
+        const result = $("#admin-confirm-message");
+        message(
+          feedback,
+          result.textContent ?? success,
+          result.classList.contains("error"),
+        );
+        confirmDialog.close();
+        afterSuccess?.();
+        // Refresh may replace the button that opened this dialog.
+        if (
+          !document.activeElement ||
+          document.activeElement === document.body
+        ) {
+          $(feedback).tabIndex = -1;
+          $(feedback).focus();
+        }
+      }
+    };
+    confirmDialog.showModal();
   };
   $("#policy-form").addEventListener("submit", (e) => {
     e.preventDefault();
@@ -754,31 +964,64 @@ async function admin() {
           (data[el.name] =
             el.type === "checkbox" ? Number(el.checked) : Number(el.value)),
       );
-    action(data);
+    void action(
+      data,
+      "#policy-message",
+      "Đã lưu cấu hình dịch vụ.",
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')!,
+    );
   });
   $("#block-form").addEventListener("submit", (e) => {
     e.preventDefault();
-    const f = new FormData(e.target as HTMLFormElement);
-    action({
-      action: "add_block",
-      kind: f.get("kind"),
-      subject: f.get("value"),
-    });
+    const form = e.target as HTMLFormElement;
+    const f = new FormData(form);
+    confirmAction(
+      {
+        action: "add_block",
+        kind: f.get("kind"),
+        subject: f.get("value"),
+      },
+      "Chặn địa chỉ này?",
+      String(f.get("value")),
+      f.get("kind") === "host"
+        ? "Các link trỏ đến tên miền này và tên miền con sẽ không mở được."
+        : "Các link trỏ đến đúng địa chỉ này sẽ không mở được.",
+      "#block-message",
+      "Đã thêm địa chỉ vào danh sách chặn.",
+      () => form.reset(),
+    );
   });
   $("#blocklist").addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
       "[data-remove-block]",
     );
     if (b)
-      action({
-        action: "remove_block",
-        kind: b.dataset.kind,
-        subject: b.dataset.removeBlock,
-      });
+      confirmAction(
+        {
+          action: "remove_block",
+          kind: b.dataset.kind,
+          subject: b.dataset.removeBlock,
+        },
+        "Gỡ chặn địa chỉ?",
+        b.dataset.removeBlock ?? "",
+        "Địa chỉ này sẽ được gỡ khỏi danh sách chặn. Các hạn chế khác của link vẫn áp dụng.",
+        "#block-message",
+        "Đã gỡ địa chỉ khỏi danh sách chặn.",
+      );
   });
   $("#admin-search").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const q = new FormData(e.target as HTMLFormElement).get("query");
+    const form = e.target as HTMLFormElement;
+    const button = form.querySelector<HTMLButtonElement>(
+      'button[type="submit"]',
+    )!;
+    if (button.disabled) return;
+    const q = new FormData(form).get("query");
+    button.disabled = true;
+    button.textContent = "Đang tìm…";
+    $("#admin-results").setAttribute("aria-busy", "true");
+    message("#admin-search-message", "Đang tra cứu…");
+    message("#admin-results-message", "");
     try {
       const r = await api(
         "/api/admin/search?q=" + encodeURIComponent(String(q)),
@@ -787,7 +1030,7 @@ async function admin() {
         r.users
           .map(
             (u: any) =>
-              `<div class="panel"><p>${esc(u.email)} · ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}">Khóa tất cả link của tài khoản</button></div>`,
+              `<div class="panel"><p>${esc(u.email)} · ${esc(u.name)}</p><button class="secondary" data-admin-action="block_user" data-subject="${esc(u.id)}" data-context="${esc(u.email)}" data-blocked="${!u.blocked}">${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</button> <button class="quiet danger" data-admin-action="block_user_links" data-subject="${esc(u.id)}" data-context="${esc(u.email)}">Khóa tất cả link của tài khoản</button></div>`,
           )
           .join("") +
           r.links
@@ -795,21 +1038,58 @@ async function admin() {
               (l: any) =>
                 `<div class="link-card"><div><strong>${esc(l.slug)} · ${esc(linkStatus(l.status))}</strong><p class="link-target">${esc(l.target)}</p></div><button class="secondary" data-admin-action="block_link" data-subject="${esc(l.slug)}">Vô hiệu hóa link</button></div>`,
             )
-            .join("") || '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';
+            .join("") ||
+        '<p class="small">Không tìm thấy tài khoản hoặc link phù hợp.</p>';
+      message(
+        "#admin-search-message",
+        `Tìm thấy ${r.users.length} tài khoản và ${r.links.length} link.`,
+      );
     } catch (e) {
-      message("#admin-message", (e as Error).message, true);
+      message(
+        "#admin-search-message",
+        `${(e as Error).message} Kết quả bên dưới chưa được cập nhật.`,
+        true,
+      );
+    } finally {
+      button.disabled = false;
+      button.textContent = "Tra cứu";
+      $("#admin-results").removeAttribute("aria-busy");
     }
   });
   $("#admin-results").addEventListener("click", (e) => {
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(
       "[data-admin-action]",
     );
-    if (b)
-      action({
-        action: b.dataset.adminAction,
-        subject: b.dataset.subject,
-        blocked: b.dataset.blocked !== "false",
-      });
+    if (b) {
+      const blocking = b.dataset.blocked !== "false";
+      const title = b.textContent?.trim() ?? "Xác nhận";
+      const description =
+        b.dataset.adminAction === "block_user"
+          ? blocking
+            ? "Tài khoản này sẽ không thể đăng nhập và quản lý link. Các link của tài khoản không tự bị khóa."
+            : "Tài khoản này sẽ được đăng nhập và quản lý link trở lại."
+          : b.dataset.adminAction === "block_user_links"
+            ? "Tất cả link của tài khoản sẽ ngừng hoạt động. Thao tác này không khóa đăng nhập."
+            : "Link này sẽ ngừng chuyển hướng đến địa chỉ đích.";
+      confirmAction(
+        {
+          action: b.dataset.adminAction,
+          subject: b.dataset.subject,
+          blocked: blocking,
+        },
+        `${title}?`,
+        b.dataset.context ?? `oh.io.vn/${b.dataset.subject}`,
+        description,
+        "#admin-results-message",
+        `Đã ${title.toLocaleLowerCase("vi-VN")}.`,
+        () => {
+          if (b.dataset.adminAction === "block_user") {
+            b.dataset.blocked = String(!blocking);
+            b.textContent = blocking ? "Mở khóa tài khoản" : "Khóa tài khoản";
+          }
+        },
+      );
+    }
   });
 }
 configureDialogs();
@@ -835,7 +1115,10 @@ try {
   const submit = document.querySelector<HTMLButtonElement>(
     '#shorten-form button[type="submit"]',
   );
-  if (submit) submit.disabled = true;
+  if (submit) {
+    submit.disabled = true;
+    submit.textContent = "Rút gọn link";
+  }
   const list = document.querySelector<HTMLElement>("#link-list");
   if (list && list.textContent?.includes("Đang tải link"))
     list.innerHTML =

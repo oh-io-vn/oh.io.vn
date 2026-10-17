@@ -35,6 +35,28 @@ and [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob
 
 ## Components and behavior
 
+### Current refinement brief
+
+This is a Vietnamese utility for people sharing web addresses, with a secondary
+workspace for link owners and service administrators. The URL field and its submit
+button remain the focal point. Keep the existing blue brand, self-hosted Space
+Grotesk, neutral canvas and divided link list. Avoid adding marketing sections.
+
+- Keep the home heading and form left aligned within the same 720px column.
+- Use 48px home headings on desktop, 32px on mobile, with tracking at -0.035em.
+- Keep the URL field and submit button adjacent; put account guidance after them.
+- Show the actual short URL, including its slash, in link records and dialogs.
+- Keep search labels visible and loading/result feedback next to the list.
+- Identify the affected record in edit, delete, statistics and admin dialogs.
+- Confirm destructive admin actions before sending them. Keep API permissions intact.
+- Show form feedback beside the originating action, including on narrow screens.
+- Never reveal editable admin settings before their current values load successfully.
+- Preserve legal wording, donation details, account limits and expiry calculations.
+
+The review criteria are task clarity, readable Vietnamese, discoverable feedback,
+keyboard focus continuity, and no overflow at 390, 768 and 1440px. The existing
+palette, icon and list structure are deliberate choices, not defects to remove.
+
 - Shared header, active navigation, keyboard skip link and shared footer.
 - One prominent action per task; secondary buttons are neutral and outlined.
 - Controls have visible labels, focus rings and at least 44px touch targets.

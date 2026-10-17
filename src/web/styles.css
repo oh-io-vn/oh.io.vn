@@ -267,14 +267,14 @@ body[data-page="index"] main {
   margin: 0 auto;
 }
 .hero-intro {
-  text-align: center;
-  margin-bottom: 36px;
+  text-align: left;
+  margin-bottom: var(--space-8);
 }
 .hero h1 {
-  font-size: 3.5rem;
+  font-size: 3rem;
   line-height: 1.15;
-  letter-spacing: -0.055em;
-  margin: 0 0 var(--space-6);
+  letter-spacing: -0.035em;
+  margin: 0 0 var(--space-4);
   font-weight: 600;
 }
 .hero-intro > p {
@@ -423,6 +423,50 @@ input[type="datetime-local"] {
 }
 .account-hint a:hover {
   text-decoration: underline;
+}
+.account-hint {
+  max-width: 65ch;
+}
+.optional-label {
+  color: var(--muted);
+  font-weight: 400;
+}
+.slug-input {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--control-line);
+  border-radius: var(--radius-control);
+  margin-top: var(--space-2);
+  overflow: hidden;
+}
+.slug-input > span {
+  padding-left: var(--space-3);
+  color: var(--muted);
+  font-weight: 400;
+}
+.slug-input input {
+  border: 0;
+  margin: 0;
+  border-radius: 0;
+  padding-left: var(--space-1);
+}
+.slug-input:focus-within {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+.slug-input input:focus {
+  outline: none;
+}
+.fields .field-error {
+  display: block;
+  font-weight: 400;
+}
+.fields .field-error:empty {
+  display: none;
+}
+input[aria-invalid="true"],
+.slug-input:has([aria-invalid="true"]) {
+  border-color: var(--danger);
 }
 .field-error {
   margin: var(--space-2) 0 0;
@@ -611,6 +655,28 @@ form .notice {
   align-items: center;
   min-height: 44px;
 }
+.footer-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  min-height: 44px;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.footer-action:hover {
+  color: var(--text);
+}
+.text-button {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
 .site-footer .links a[aria-current="page"] {
   color: var(--text);
   text-decoration: underline;
@@ -640,6 +706,32 @@ form .notice {
 }
 .toolbar input {
   max-width: 420px;
+}
+.search-form .toolbar {
+  margin-top: 0;
+  margin-bottom: var(--space-3);
+}
+.list-status {
+  min-height: 1.7em;
+  margin-bottom: var(--space-3);
+}
+.list-status:empty {
+  display: none;
+}
+.form-actions {
+  margin-top: var(--space-6);
+}
+.dialog-context {
+  color: var(--blue);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--blue-soft);
+  font-size: 0.875rem;
+  margin-block: var(--space-4);
+  overflow-wrap: anywhere;
+}
+.panel > .notice {
+  margin-block: var(--space-4) 0;
 }
 .empty {
   padding: var(--space-16) var(--space-6);
@@ -760,6 +852,15 @@ dialog {
   background: var(--danger);
   border-color: var(--danger);
 }
+.danger-button {
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.danger-button:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  filter: brightness(0.92);
+}
 #confirm-delete:hover {
   filter: brightness(0.92);
 }
@@ -778,6 +879,7 @@ dialog {
 .prose h2 {
   margin: var(--space-8) 0 var(--space-3);
   padding-top: var(--space-2);
+  scroll-margin-top: var(--space-6);
 }
 .prose p,
 .prose li {
@@ -1111,7 +1213,7 @@ td {
     font-size: 1.875rem;
   }
   .hero h1 {
-    font-size: 2.75rem;
+    font-size: 2rem;
     margin-bottom: var(--space-4);
   }
   .hero-intro {
@@ -1236,7 +1338,7 @@ td {
     align-items: center;
   }
   .hero h1 {
-    font-size: 2.25rem;
+    font-size: 2rem;
   }
   .shortener {
     padding: 20px;
