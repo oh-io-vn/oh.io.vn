@@ -211,6 +211,7 @@ async function home() {
         language: "vi",
         callback: (t: string) => {
           token = t;
+          message("#verification-message", "");
         },
         "expired-callback": () => {
           token = "";
@@ -218,16 +219,15 @@ async function home() {
         "error-callback": () => {
           token = "";
           message(
-            "#form-message",
-            "Không tải được xác minh. Kiểm tra kết nối hoặc tải lại trang.",
-            true,
+            "#verification-message",
+            "Xác minh cho lần tạo tiếp theo chưa sẵn sàng. Bạn có thể tải lại trang để thử lại; link đã tạo vẫn sử dụng được.",
           );
         },
       });
     };
     script.onerror = () =>
       message(
-        "#form-message",
+        "#verification-message",
         "Không tải được xác minh. Hãy kiểm tra kết nối.",
         true,
       );
