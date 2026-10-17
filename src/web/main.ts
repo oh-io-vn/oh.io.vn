@@ -127,7 +127,7 @@ async function account() {
   if (me.user) {
     $("#nav-dashboard").hidden = false;
     $("#account").innerHTML =
-      `${me.admin ? '<a href="/admin/" class="quiet">Quản trị</a>' : ""}<button class="quiet" id="logout">Đăng xuất</button>`;
+      `${me.admin ? `<a href="/admin/" class="quiet"${location.pathname === "/admin/" ? ' aria-current="page"' : ""}>Quản trị</a>` : ""}<button class="quiet" id="logout">Đăng xuất</button>`;
     $("#logout").addEventListener("click", async () => {
       const button = $<HTMLButtonElement>("#logout");
       button.disabled = true;
@@ -382,8 +382,8 @@ async function loadLinks(append = false) {
     $("#link-list").innerHTML = links.length
       ? links.map(card).join("")
       : q.trim()
-        ? '<p class="empty">Không tìm thấy link.</p>'
-        : '<p class="empty">Chưa có link.</p>';
+        ? '<div class="empty"><h2>Không tìm thấy link</h2><p>Thử tên hoặc đường dẫn khác để tìm lại.</p></div>'
+        : '<div class="empty"><h2>Chưa có đường dẫn nào</h2><p>Tạo link đầu tiên để quản lý và xem thống kê tại đây.</p><a class="secondary" href="/">Tạo link đầu tiên</a></div>';
     message(
       "#dashboard-notice",
       expiryHold
@@ -401,7 +401,7 @@ async function dashboard() {
   if (!$("#link-list")) return;
   if (!me.user) {
     $("#link-list").innerHTML =
-      '<p class="empty"><a href="/auth/login">Đăng nhập Google</a> để quản lý link.</p>';
+      '<div class="empty"><h2>Đường dẫn của bạn, ở một nơi</h2><p>Đăng nhập để quản lý link, chỉnh sửa và xem thống kê.</p><a class="primary" href="/auth/login">Đăng nhập Google</a></div>';
     $(".toolbar").hidden = true;
     return;
   }
@@ -640,12 +640,13 @@ async function admin() {
         )
         .join("") || '<p class="small">Chưa có thao tác.</p>';
     const blocked = await api("/api/admin/blocklist");
-    $("#blocklist").innerHTML = blocked
-      .map(
-        (b: any) =>
-          `<div class="stat-row"><span>${esc(b.kind)} · ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
-      )
-      .join("");
+    $("#blocklist").innerHTML =
+      blocked
+        .map(
+          (b: any) =>
+            `<div class="stat-row"><span>${esc(b.kind)} · ${esc(b.value)}</span><button class="quiet" data-remove-block="${esc(b.value)}" data-kind="${b.kind}">Gỡ</button></div>`,
+        )
+        .join("") || '<p class="small">Chưa có địa chỉ nào bị chặn.</p>';
   };
   await refresh();
   const action = async (body: Record<string, unknown>) => {

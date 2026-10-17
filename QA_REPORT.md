@@ -1,6 +1,61 @@
 # Kiểm tra chức năng và giao diện oh.io.vn
 
-Ngày kiểm tra: 17/10/2026. Bản sửa đã triển khai lên https://oh.io.vn. Báo cáo phân biệt production, Worker local với dữ liệu giả và phép đo bố cục trong khung trình duyệt.
+## Thiết kế giao diện SaaS, kiểm tra local ngày 17/10/2026
+
+Bản thiết kế mới đã chạy bằng `npm run dev` trên Worker local tại
+`http://localhost:8787`. Thay đổi của đợt này chưa triển khai lên production.
+Các mục phía dưới phần này là hồ sơ kiểm tra của giao diện cũ.
+
+### Phạm vi và kết quả
+
+- Kiểm tra giao diện cũ bằng ảnh trình duyệt trước khi sửa. Thiết lập token màu,
+  chữ, khoảng cách và thành phần trong [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md).
+- Sửa generator chung, stylesheet và phần trình bày trạng thái rỗng. Giữ API,
+  luồng xác thực, xác minh, hạn mức, thời hạn và mã Worker. Không thêm dependency.
+- Chạy Chrome headless trên bản build thật. Kiểm tra bảy trang với cả phiên khách
+  và tài khoản giả tại 320, 390, 768, 1280 và 1440 px, tổng cộng 70 tổ hợp.
+- Kiểm tra thêm bảy trang ở 320 × 390, 390 × 390 và 844 × 390. Kiểm tra cả bảy
+  trang với chữ tăng 200% tại 320 và 390 px, cho cả khách và tài khoản giả.
+- Tổng cộng 128 phép đo bố cục đều không tràn ngang. Hộp sửa, thống kê và đóng
+  góp nằm trong khung hẹp, cuộn được khi chiều cao chỉ 390 px.
+- Đã mở và xem ảnh desktop/mobile của trang chủ, dashboard, admin, nội dung
+  thông tin/quy định và hộp thoại. Sau lần xem đầu, sửa điều hướng mobile xuống
+  dòng thiếu cân đối, trạng thái trang hiện tại, skip link lọt vào ảnh toàn trang,
+  nhãn tra cứu, mô tả và trạng thái danh sách chặn rỗng. Sau khi tăng chữ 200%,
+  phát hiện thêm tài khoản đè lên logo và chuyển header mobile sang CSS grid.
+  Đã chụp, đo và xem lại sau sửa.
+- Kiểm tra bằng thao tác trình duyệt với API và Turnstile giả: tạo link khách,
+  tạo link có mã/tên tùy chỉnh, sao chép vào clipboard, tìm kiếm có/không có kết
+  quả, trạng thái chưa có link, sửa/lưu, thống kê, tải Excel, hủy/xác nhận xóa,
+  cấu hình và danh sách chặn admin, tra cứu rỗng, đóng góp và lỗi kết nối.
+- Skip link hoạt động bằng bàn phím. Escape đóng hộp thoại và trả focus về nút
+  mở. Tôn trọng reduced motion. Không có exception JavaScript trong lượt QA.
+- Không mock trong lượt smoke test riêng: cả bảy trang trên Worker local trả
+  HTTP 200, chụp thêm trang chủ desktop và mobile từ Worker thật.
+
+### Bằng chứng local
+
+- Runner: `.local/design-qa.mjs`.
+- Ảnh và kết quả đo: `.local/design-qa/` và `.local/design-qa/results.json`.
+- Trang chủ Worker thật: `local-worker-home-desktop.png` và
+  `local-worker-home-mobile.png` trong thư mục ảnh.
+- Dashboard có dữ liệu giả: `member-dashboard-1440.png` và
+  `member-dashboard-390.png`. Các ảnh `member-*` chứa dữ liệu kiểm thử.
+- Excel tải qua UI: `.local/design-qa/oh-tai-lieu-2026-09-18.xlsx`.
+- 54 kiểm thử hiện có, typecheck, build kèm Wrangler dry-run, Prettier và
+  `git diff --check` đều đạt. Kiểm tra đối chiếu xác nhận mọi ID DOM và tên trường
+  form cũ còn nguyên. Worker, shared rules, migration và manifest dependency
+  không thay đổi. Các file `.local/` được Git bỏ qua.
+
+Đây là kiểm tra Chrome desktop mô phỏng viewport mobile. Đợt thiết kế này không
+thử lại Google OAuth thật, Turnstile production, thiết bị iOS/Android hoặc Safari.
+Các thao tác ghi trong QA trình duyệt dùng fixture cô lập, không sửa dữ liệu thật.
+
+## Hồ sơ kiểm tra giao diện trước khi thiết kế lại
+
+Ngày kiểm tra trước: 17/10/2026. Bản sửa giao diện cũ đã triển khai lên
+https://oh.io.vn. Nội dung sau phân biệt production, Worker local với dữ liệu giả
+và phép đo bố cục trong khung trình duyệt.
 
 ## Lần tối giản giao diện tiếp theo
 
