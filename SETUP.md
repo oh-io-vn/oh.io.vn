@@ -25,15 +25,16 @@ Cập nhật: 17/10/2026, giờ Việt Nam. Tài liệu chỉ chứa thông tin 
 
 ## Email báo cáo lạm dụng
 
-- Địa chỉ nguồn yêu cầu: `abuse@oh.io.vn`.
+- Địa chỉ nguồn yêu cầu: `hi@oh.io.vn`.
 - Địa chỉ đích: `oh.io.vn@proton.me`.
 - Địa chỉ đích đã được thêm trong Cloudflare Email Routing và giao diện hiển thị `Verified`.
-- Đã kích hoạt Email Routing sau xác nhận của chủ dự án và tạo duy nhất quy tắc `abuse@oh.io.vn` → `oh.io.vn@proton.me`; giao diện quy tắc hiển thị `Active`.
+- Email Routing hiện chỉ có một quy tắc `hi@oh.io.vn` → `oh.io.vn@proton.me`; đã sửa trực tiếp quy tắc hiện có theo yêu cầu đổi địa chỉ của chủ dự án, giao diện hiển thị `Active`.
 - Catch-all ở trạng thái `Disabled`.
 - DNS công khai đã có ba MX của Cloudflare, TXT SPF và TXT DKIM `cf2024-1._domainkey`. Ưu tiên MX được Cloudflare cấp trong lần thiết lập này: route3 = 55, route1 = 79, route2 = 99; không hard-code các giá trị này làm mặc định cho domain khác.
 - Đã tải lại trang tổng quan và kiểm chứng `Routing status: Enabled`, `DNS records: Locked`, một quy tắc và một địa chỉ đích.
-- Không bật catch-all. Không cấu hình mailbox gửi thư mang địa chỉ `abuse@` trong bước này.
-- Đã kiểm chứng giao thư đầu cuối: gửi một thư thử từ chính hộp Proton đến `abuse@oh.io.vn`, sau đó thấy bản nhận trong Inbox của `oh.io.vn@proton.me`, người nhận gốc vẫn là `abuse@oh.io.vn`. Giao diện hiển thị riêng bản `Sent` và bản `Inbox` trong cùng cuộc hội thoại, nhận ngày 17/10/2026 lúc 17:21 giờ Việt Nam.
+- Không bật catch-all. Không cấu hình mailbox gửi thư mang địa chỉ `hi@` trong bước này.
+- Đã kiểm chứng lại giao thư đầu cuối sau khi đổi địa chỉ: thư thử gửi tới `hi@oh.io.vn` đã được nhận trong Inbox của `oh.io.vn@proton.me` lúc 17:29 ngày 17/10/2026, người nhận gốc vẫn là `hi@oh.io.vn`. Giao diện hiển thị riêng bản `Sent` và bản `Inbox` trong cùng cuộc hội thoại.
+- Lượt thử đầu ngay sau khi sửa quy tắc bị Cloudflare trả SMTP `550 5.1.1 Address does not exist`; lượt thử lại sau đó đã nhận thành công. Trạng thái giao diện `Active` cần được kiểm chứng bằng nhận thư thực tế sau mỗi lần thay đổi.
 
 ## Đóng góp
 

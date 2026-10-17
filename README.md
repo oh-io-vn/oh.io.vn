@@ -19,7 +19,7 @@ Dự án công cụ rút gọn link miễn phí dành cho cộng đồng Việt 
 
 ## Báo cáo lạm dụng
 
-Email nhận báo cáo: [abuse@oh.io.vn](mailto:abuse@oh.io.vn). Đã cấu hình chuyển tiếp và kiểm chứng nhận thư thực tế; chi tiết được ghi trong [SETUP.md](SETUP.md).
+Email nhận báo cáo: [hi@oh.io.vn](mailto:hi@oh.io.vn). Đã cấu hình chuyển tiếp và kiểm chứng nhận thư thực tế; chi tiết được ghi trong [SETUP.md](SETUP.md).
 
 Khi gửi báo cáo, vui lòng nêu link rút gọn, lý do và bằng chứng nếu có. Không gửi mật khẩu, mã đăng nhập hoặc dữ liệu nhạy cảm không cần thiết.
 

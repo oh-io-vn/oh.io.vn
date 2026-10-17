@@ -268,8 +268,8 @@ Các giá trị sau đã được thống nhất làm cấu hình thử nghiệm
 Cập nhật ngày 17/10/2026 theo yêu cầu thiết lập domain, repository và email.
 
 - Tổ chức GitHub: `oh-io-vn`; repository dự án: `https://github.com/oh-io-vn/oh.io.vn`.
-- Email công khai nhận báo cáo lạm dụng: `abuse@oh.io.vn`.
-- Cấu hình chuyển tiếp được yêu cầu: `abuse@oh.io.vn` → `oh.io.vn@proton.me` qua Cloudflare Email Routing. Trạng thái thực tế phải được xác minh và ghi trong tài liệu vận hành.
+- Email công khai nhận báo cáo lạm dụng: `hi@oh.io.vn`.
+- Cấu hình chuyển tiếp được yêu cầu: `hi@oh.io.vn` → `oh.io.vn@proton.me` qua Cloudflare Email Routing. Trạng thái thực tế phải được xác minh và ghi trong tài liệu vận hành.
 - Thông tin đóng góp tự nguyện do chủ dự án cung cấp để hiển thị trên website:
   - Ngân hàng: TPBank.
   - Chủ tài khoản: NGUYỄN THÀNH NHÂN.
