@@ -74,6 +74,26 @@ Custom domain được khai báo trong `wrangler.jsonc`. Giữ nguyên MX/TXT Em
 
 ### Tự động deploy từ GitHub Actions
 
+#### Danh sách quản trị
+
+`/admin/` mặc định mở danh sách link. Chọn **Tài khoản** để xem tổng số tài khoản,
+email, ngày tạo, trạng thái và số link còn lưu. **Xem link** lọc theo tài khoản đó.
+**Vận hành** giữ cấu hình, tra cứu/khóa, danh sách chặn và nhật ký cũ.
+
+Danh sách dùng API admin, tối đa 25 bản ghi mỗi trang. Bộ lọc trạng thái link tính
+ngày hết hạn tại thời điểm tải, có xét expiry hold. Link khách không có tài khoản
+người tạo và không được ghi thống kê. Link đã dọn dữ liệu không thể phục hồi thông
+tin người tạo từ mã còn giữ lại. Số link của tài khoản không phải tổng số từng tạo.
+
+Admin được sửa mã, địa chỉ đích, tên ghi nhớ và hạn cố định của link còn hoạt động,
+kể cả link khách. Validation, chống CSRF, hạn mức và quy tắc giữ mã cũ không đổi.
+Sửa link và ghi nhật ký `edit_link` nằm trong cùng giao dịch. Link bị khóa, đã xóa
+hoặc hết hạn không được hồi sinh bằng hộp sửa. Nhật ký vẫn được giữ 7 ngày.
+
+Migration `0004_admin_directory_indexes.sql` thêm hai index phục vụ phân trang,
+không sửa dữ liệu. Áp dụng bằng `npm run db:remote` khi được phép phát hành, trước
+khi đưa bản quản trị mới lên production. CI hiện không tự áp migration D1.
+
 #### Phát hành tính năng đổi mã link
 
 Áp dụng `migrations/0003_rename_link_codes.sql` bằng `npm run db:remote` trước

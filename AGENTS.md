@@ -126,6 +126,19 @@
 
 ## DEVELOPMENT RULES
 
+- Trang quản trị có ba mục qua query `view`: `links` (mặc định), `users`,
+  `operations`. Giữ URL cho bộ lọc và tài khoản được chọn. API danh sách chỉ
+  dành cho admin, phân trang 25 bản ghi bằng ngày tạo + mã/ID ổn định.
+- Danh sách phải hiển thị người tạo, trạng thái và thời hạn có tính expiry hold.
+  Phân biệt link khách với tombstone đã xóa thông tin, không suy đoán người tạo.
+  Tổng link của tài khoản là số link còn gắn tài khoản, không phải số từng tạo.
+- Admin dùng chung validation và hộp sửa/thống kê với chủ link, nhưng qua route
+  `/api/admin/links`. Không mở rộng quyền của `/api/links` cho người khác.
+  Ghi audit cùng giao dịch sửa link. Không cho sửa/hồi sinh link đã ngừng hoạt động.
+- Thử thêm `node scripts/test-admin-ui.mjs` khi sửa danh sách quản trị: phân trang,
+  tìm kiếm, tài khoản không có link, lỗi/tải chậm, hộp chi tiết, sửa, thống kê,
+  responsive và dữ liệu dài. Chỉ dùng API giả trên localhost.
+
 1. Tuân thủ design system và quy tắc nội dung trên.
 2. Chạy app khi khả thi; xem giao diện render bằng browser trước và sau khi sửa.
 3. Chụp và xem ảnh của nhóm trang đã thay đổi ở desktop, tablet và mobile.

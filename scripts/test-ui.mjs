@@ -259,7 +259,9 @@ try {
     });
   });
   const goto = async (path) => {
-    await page.goto(origin + path);
+    await page.goto(
+      origin + (path === "/admin/" ? "/admin/?view=operations" : path),
+    );
     await page.evaluate(() => document.fonts.ready);
     if (path === "/" && !networkError)
       await page.waitForSelector("#shorten-form button[type=submit]:enabled");
@@ -418,7 +420,9 @@ try {
       "/report/",
     ]) {
       accountDelay = 1500;
-      await page.goto(origin + path);
+      await page.goto(
+        origin + (path === "/admin/" ? "/admin/?view=operations" : path),
+      );
       await page.evaluate(() => document.fonts.ready);
       await page.locator("#account .loading-placeholder").waitFor();
       assert.equal(await page.locator("#login-link").isVisible(), false);
@@ -1156,7 +1160,7 @@ try {
 
   // Admin settings are not editable before their current values are known.
   overviewDelay = 650;
-  await page.goto(origin + "/admin/");
+  await page.goto(origin + "/admin/?view=operations");
   await page.waitForFunction(() =>
     document.querySelector("#admin-message").textContent.includes("Đang tải"),
   );

@@ -34,6 +34,8 @@ import {
   vietnamDay,
 } from "../shared/rules";
 import type { App, Env, Link } from "./types";
+import { editLink, linkStats } from "./link-management";
+import { adminDirectory } from "./admin-directory";
 const app = new Hono<App>();
 app.use("*", async (c, next) => {
   await next();
@@ -263,109 +265,18 @@ app.use("/api/links/:slug/*", async (c, next) => {
   if (!l) return c.json({ error: "Không tìm thấy link." }, 404);
   await next();
 });
-app.patch("/api/links/:slug/edit", async (c) => {
-  const l = await c.env.DB.prepare(
-    "SELECT * FROM links WHERE slug=? AND owner_id=?",
-  )
-    .bind(c.req.param("slug"), c.get("user")!.id)
-    .first<Link>();
-  if (!l) return c.json({ error: "Không tìm thấy link." }, 404);
-  const now = Date.now();
-  const held = expiryHeld(c.get("policy"), now);
-  if (
-    l.status !== "active" ||
-    (l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
-    (!held && l.idle_expires_at <= now)
-  )
-    return c.json({ error: "Link đã ngừng hoạt động nên không thể sửa." }, 409);
-  const b = await readBody(c);
-  let target: URL, slug: string, fixed: number | null;
-  try {
-    target = targetValue(b.target, c.env.APP_ORIGIN);
-    slug = b.slug === undefined ? l.slug : slugValue(b.slug);
-    fixed = fixedExpiry(b.fixed_expires_at, now);
-    if (await blocked(c.env, target)) throw new Error("Địa chỉ đã bị chặn.");
-  } catch (e) {
-    return c.json({ error: (e as Error).message }, 400);
-  }
-  // Fail closed if a Worker is deployed before migration 0003. Never release
-  // an old code without the reservation trigger and cascading analytics FK.
-  if (
-    slug !== l.slug &&
-    !(await c.env.DB.prepare(
-      "SELECT 1 FROM sqlite_schema WHERE type='trigger' AND name='reserve_renamed_slug'",
-    ).first())
-  )
-    return c.json(
-      { error: "Chức năng đổi mã đang được cập nhật. Hãy thử lại sau." },
-      503,
-    );
-  try {
-    // The single update, FK cascade and tombstone trigger are atomic. Recheck
-    // ownership/status/expiry here in case the record changed after the read.
-    const result = await c.env.DB.prepare(
-      "UPDATE links SET slug=?,target=?,host=?,label=?,fixed_expires_at=? WHERE slug=? AND owner_id=? AND status='active' AND (fixed_expires_at IS NULL OR fixed_expires_at>?) AND (?=1 OR idle_expires_at>?)",
-    )
-      .bind(
-        slug,
-        target.toString(),
-        target.hostname,
-        typeof b.label === "string" ? b.label.trim().slice(0, 120) : null,
-        fixed,
-        l.slug,
-        c.get("user")!.id,
-        now,
-        Number(held),
-        now,
-      )
-      .run();
-    if (!result.meta.changes)
-      return c.json(
-        {
-          error:
-            "Link đã thay đổi hoặc ngừng hoạt động. Hãy tải lại danh sách.",
-        },
-        409,
-      );
-    return c.json({ ok: true, slug, url: c.env.APP_ORIGIN + "/" + slug });
-  } catch (e) {
-    const detail = String((e as Error).cause ?? e);
-    if (detail.includes("UNIQUE"))
-      return c.json(
-        { error: "Mã này đã được sử dụng. Hãy chọn mã khác." },
-        409,
-      );
-    throw e;
-  }
-});
+app.patch("/api/links/:slug/edit", (c) => editLink(c));
 app.delete("/api/links/:slug/delete", async (c) => {
   await tombstone(c.env, c.req.param("slug"));
   return c.json({ ok: true });
 });
-app.get("/api/links/:slug/stats", async (c) => {
-  const since = vietnamDay(Date.now() - 29 * 86400000);
-  const [data, gaps] = await c.env.DB.batch([
-    c.env.DB.prepare(
-      "SELECT day,source,device,clicks FROM analytics WHERE slug=? AND day>=? ORDER BY day DESC",
-    ).bind(c.req.param("slug"), since),
-    c.env.DB.prepare(
-      "SELECT * FROM analytics_gaps WHERE ended_at IS NULL OR ended_at>=? ORDER BY started_at",
-    ).bind(Date.now() - 30 * 86400000),
-  ]);
-  return c.json({
-    rows: data.results,
-    gaps: gaps.results,
-    since,
-    enabled:
-      !!c.get("policy").analytics_enabled &&
-      c.get("policy").automatic_level < 80,
-  });
-});
+app.get("/api/links/:slug/stats", linkStats);
 app.use("/api/admin/*", async (c, next) => {
   if (!c.get("admin"))
     return c.json({ error: "Không có quyền quản trị." }, 403);
   await next();
 });
+app.route("/api/admin", adminDirectory);
 app.get("/api/admin/overview", async (c) => {
   const [p, counts, audit] = await Promise.all([
     Promise.resolve(c.get("policy")),

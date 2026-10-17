@@ -14,13 +14,14 @@ type LinkData = {
   created_at: number;
   expires_at: number;
   fixed_expires_at: number | null;
-  owner_id?: string;
+  owner_id?: string | null;
 };
 type Stats = {
   rows: { day: string; source: string; device: string; clicks: number }[];
   gaps: { started_at: number; ended_at: number | null; reason: string }[];
   since: string;
   enabled: boolean;
+  tracked?: boolean;
 };
 type Me = {
   user: { name: string; email: string; blocked: boolean } | null;
@@ -79,6 +80,7 @@ const blockKind = (kind: string) =>
   ({ host: "Tên miền", url: "Địa chỉ web" })[kind] ?? kind;
 const adminAction = (action: string) =>
   ({
+    edit_link: "Sửa link",
     policy: "Đổi cấu hình",
     block_link: "Khóa link",
     block_user: "Đổi trạng thái tài khoản",
@@ -514,6 +516,10 @@ let links: LinkData[] = [],
   next: string | null = null,
   selected: LinkData | null = null,
   stats: Stats | null = null;
+const linkApiBase = () =>
+  $("#admin-directory") ? "/api/admin/links" : "/api/links";
+const linkNotice = () =>
+  $("#admin-directory") ? "#directory-message" : "#dashboard-notice";
 let detailRequest = 0;
 let listRequest = 0;
 let expiryHold = false;
@@ -624,76 +630,85 @@ async function dashboard() {
       await copy(location.origin + "/" + link.slug, b);
       return;
     }
-    const request = ++detailRequest;
-    if (b.dataset.action === "edit") {
-      selected = link;
-      const form = $<HTMLFormElement>("#edit-form");
-      (form.elements.namedItem("target") as HTMLInputElement).value =
-        selected.target ?? "";
-      (form.elements.namedItem("label") as HTMLInputElement).value =
-        selected.label ?? "";
-      (form.elements.namedItem("fixed_expires_at") as HTMLInputElement).value =
-        localDate(selected.fixed_expires_at);
-      $("#edit-slug").textContent = `oh.io.vn/${selected.slug}`;
-      $<HTMLInputElement>("#edit-code").value = selected.slug;
-      $<HTMLInputElement>('#edit-form [name="confirm_rename"]').checked = false;
-      updateRenameWarning();
-      message("#edit-message", "");
-      $<HTMLDialogElement>("#edit-dialog").showModal();
-    }
-    if (b.dataset.action === "delete") {
-      selected = link;
-      $("#delete-context").textContent =
-        `oh.io.vn/${link.slug}${link.label ? ` — ${link.label}` : ""}`;
-      message("#delete-message", "");
-      $<HTMLDialogElement>("#delete-dialog").showModal();
-    }
-    if (b.dataset.action === "stats") {
-      const dialog = $<HTMLDialogElement>("#stats-dialog");
-      selected = link;
-      stats = null;
-      $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
-      $("#stats-content").innerHTML = skeleton("stats");
-      $("#stats-content").setAttribute("aria-busy", "true");
-      $<HTMLButtonElement>("#export-excel").disabled = true;
-      message("#stats-message", "");
-      dialog.showModal();
-      $("#stats-dialog .dialog-body").scrollTop = 0;
-      try {
-        const data = await api<Stats>(`/api/links/${link.slug}/stats`);
-        if (request !== detailRequest || !dialog.open) return;
-        stats = data;
-        renderStats(stats);
-        $<HTMLButtonElement>("#export-excel").disabled = false;
-      } catch (e) {
-        if (request === detailRequest && dialog.open) {
-          $("#stats-content").replaceChildren();
-          message(
-            "#stats-message",
-            `${(e as Error).message} Đóng hộp này rồi mở thống kê để thử lại.`,
-            true,
-          );
-        }
-      } finally {
-        if (request === detailRequest)
-          $("#stats-content").removeAttribute("aria-busy");
-      }
-    }
+    await openLinkDialog(link, b.dataset.action ?? "");
   });
-  const updateRenameWarning = () => {
-    const changed =
-      $<HTMLInputElement>("#edit-code").value.toLowerCase() !== selected?.slug;
-    $("#rename-warning").hidden = !changed;
-    const confirmation = $<HTMLInputElement>(
-      '#edit-form [name="confirm_rename"]',
-    );
-    confirmation.required = changed;
-    confirmation.checked = false;
-    const save = $('#edit-form button[type="submit"]');
-    save.classList.toggle("danger-button", changed);
-    setControlLabel(save, changed ? "Đổi mã và lưu" : "Lưu thay đổi", "save");
+  setupLinkDialogs(loadLinks);
+  await loadLinks();
+}
+async function openLinkDialog(link: LinkData, action: string) {
+  const request = ++detailRequest;
+  if (action === "edit") {
+    selected = link;
+    const form = $<HTMLFormElement>("#edit-form");
+    (form.elements.namedItem("target") as HTMLInputElement).value =
+      selected.target ?? "";
+    (form.elements.namedItem("label") as HTMLInputElement).value =
+      selected.label ?? "";
+    (form.elements.namedItem("fixed_expires_at") as HTMLInputElement).value =
+      localDate(selected.fixed_expires_at);
+    $("#edit-slug").textContent =
+      `oh.io.vn/${selected.slug}${$("#admin-directory") ? ` - ${ownerLabel(link as AdminLink)}` : ""}`;
+    $<HTMLInputElement>("#edit-code").value = selected.slug;
+    $<HTMLInputElement>('#edit-form [name="confirm_rename"]').checked = false;
+    updateRenameWarning();
     message("#edit-message", "");
-  };
+    $<HTMLDialogElement>("#edit-dialog").showModal();
+  }
+  if (action === "delete") {
+    selected = link;
+    $("#delete-context").textContent =
+      `oh.io.vn/${link.slug}${link.label ? ` — ${link.label}` : ""}`;
+    message("#delete-message", "");
+    $<HTMLDialogElement>("#delete-dialog").showModal();
+  }
+  if (action === "stats") {
+    const dialog = $<HTMLDialogElement>("#stats-dialog");
+    selected = link;
+    stats = null;
+    $("#stats-context").textContent = `oh.io.vn/${link.slug}`;
+    $("#stats-content").innerHTML = skeleton("stats");
+    $("#stats-content").setAttribute("aria-busy", "true");
+    $<HTMLButtonElement>("#export-excel").disabled = true;
+    message("#stats-message", "");
+    dialog.showModal();
+    $("#stats-dialog .dialog-body").scrollTop = 0;
+    try {
+      const data = await api<Stats>(`${linkApiBase()}/${link.slug}/stats`);
+      if (request !== detailRequest || !dialog.open) return;
+      stats = data;
+      renderStats(stats);
+      $<HTMLButtonElement>("#export-excel").disabled = false;
+    } catch (e) {
+      if (request === detailRequest && dialog.open) {
+        $("#stats-content").replaceChildren();
+        message(
+          "#stats-message",
+          `${(e as Error).message} Đóng hộp này rồi mở thống kê để thử lại.`,
+          true,
+        );
+      }
+    } finally {
+      if (request === detailRequest)
+        $("#stats-content").removeAttribute("aria-busy");
+    }
+  }
+}
+
+function updateRenameWarning() {
+  const changed =
+    $<HTMLInputElement>("#edit-code").value.toLowerCase() !== selected?.slug;
+  $("#rename-warning").hidden = !changed;
+  const confirmation = $<HTMLInputElement>(
+    '#edit-form [name="confirm_rename"]',
+  );
+  confirmation.required = changed;
+  confirmation.checked = false;
+  const save = $('#edit-form button[type="submit"]');
+  save.classList.toggle("danger-button", changed);
+  setControlLabel(save, changed ? "Đổi mã và lưu" : "Lưu thay đổi", "save");
+  message("#edit-message", "");
+}
+function setupLinkDialogs(reload: () => Promise<boolean>) {
   $("#edit-code").addEventListener("input", updateRenameWarning);
   $('#edit-form [name="confirm_rename"]').addEventListener("change", () =>
     message("#edit-message", ""),
@@ -727,7 +742,7 @@ async function dashboard() {
     form.setAttribute("aria-busy", "true");
     message("#edit-message", "");
     try {
-      await api(`/api/links/${editedSlug}/edit`, {
+      await api(`${linkApiBase()}/${editedSlug}/edit`, {
         method: "PATCH",
         body: JSON.stringify({
           target: f.get("target"),
@@ -737,9 +752,9 @@ async function dashboard() {
         }),
       });
       $<HTMLDialogElement>("#edit-dialog").close();
-      const reloaded = await loadLinks();
+      const reloaded = await reload();
       message(
-        "#dashboard-notice",
+        linkNotice(),
         `Đã lưu thay đổi cho oh.io.vn/${newSlug}.${newSlug !== editedSlug ? " Địa chỉ cũ đã ngừng hoạt động." : ""}${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
         !reloaded,
       );
@@ -747,6 +762,7 @@ async function dashboard() {
         document.querySelector<HTMLButtonElement>(
           `[data-action="edit"][data-slug="${CSS.escape(newSlug)}"]`,
         ) ??
+        $("#directory-query") ??
         ($("#link-search").hidden ? $(".page-head .primary") : $("#search"));
       nextFocus?.focus();
     } catch (e) {
@@ -775,9 +791,9 @@ async function dashboard() {
         body: "{}",
       });
       $<HTMLDialogElement>("#delete-dialog").close();
-      const reloaded = await loadLinks();
+      const reloaded = await reload();
       message(
-        "#dashboard-notice",
+        linkNotice(),
         `Đã xóa oh.io.vn/${deletedSlug}. Link này không còn hoạt động.${reloaded ? (expiryHold ? ` ${expiryHoldNotice}` : "") : " Chưa tải được danh sách mới. Hãy tải lại trang để kiểm tra."}`,
         !reloaded,
       );
@@ -846,7 +862,6 @@ async function dashboard() {
       setControlLabel(button, "Xuất Excel", "download");
     }
   };
-  await loadLinks();
 }
 function renderStats(data: Stats) {
   const total = data.rows.reduce((n, r) => n + r.clicks, 0);
@@ -871,8 +886,249 @@ function renderStats(data: Stats) {
     <div class="chart">${days.map(([day, n]) => `<span class="chart-bar" title="${calendarDate(day)}: ${n} lượt" style="height:${(n / max) * 100}%"></span>`).join("")}</div></div>
     <div class="chart-axis small"><time datetime="${days[0][0]}">${days[0][0].split("-").reverse().join("/")}</time><time datetime="${days[29][0]}">${days[29][0].split("-").reverse().join("/")}</time></div></figure>`;
   $("#stats-content").innerHTML =
-    `<p class="small">Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice icon-notice">${icon("info")}<div>Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div></div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
+    `<p class="small">${data.tracked === false ? "Link khách không được ghi thống kê. Dữ liệu của link đã xóa hoặc hết hạn có thể đã được dọn. " : ""}Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice icon-notice">${icon("info")}<div>Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div></div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
+type AdminLink = LinkData & {
+  owner_id: string | null;
+  owner_email: string | null;
+  owner_name: string | null;
+  last_access_at: number;
+  idle_expires_at: number;
+  effective_expires_at: number | null;
+  effective_status: string;
+};
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  blocked: number;
+  created_at: number;
+  link_count: number;
+};
+const ownerLabel = (l: AdminLink) =>
+  l.owner_email ||
+  (l.target ? "Khách (chưa đăng nhập)" : "Thông tin người tạo đã được xóa");
+const ownerUrl = (id: string) =>
+  `/admin/?view=links&owner=${encodeURIComponent(id)}`;
+const expiryLabel = (l: AdminLink) =>
+  l.effective_expires_at === null
+    ? "Đang tạm dừng hết hạn do không hoạt động"
+    : date(l.effective_expires_at);
+function directoryLink(l: AdminLink) {
+  const active = canEditLink(l, expiryHold);
+  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${l.effective_status === "blocked" ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button></div></article>`;
+}
+function directoryUser(u: AdminUser) {
+  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked ? " danger" : ""}">${u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p></div><a class="secondary" href="${ownerUrl(u.id)}">${icon("list")}<span>Xem link</span></a></article>`;
+}
+async function adminDirectory(view: "links" | "users") {
+  const root = $("#admin-directory");
+  root.hidden = false;
+  $("#admin-loading")?.remove();
+  const form = $<HTMLFormElement>("#directory-filter");
+  const query = $<HTMLInputElement>("#directory-query");
+  const state = $<HTMLSelectElement>("#directory-state");
+  const previous = $<HTMLButtonElement>("#directory-prev");
+  const more = $<HTMLButtonElement>("#directory-next");
+  const refresh = $<HTMLButtonElement>("#directory-refresh");
+  const parameters = new URLSearchParams(location.search);
+  const owner = view === "links" ? parameters.get("owner") || "" : "";
+  query.value = parameters.get("q") || "";
+  const options =
+    view === "links"
+      ? [
+          ["all", "Tất cả link còn lưu"],
+          ["active", "Đang hoạt động"],
+          ["expired", "Hết hạn"],
+          ["blocked", "Đã khóa"],
+          ["deleted", "Đã xóa / mã cũ"],
+        ]
+      : [
+          ["all", "Tất cả tài khoản"],
+          ["active", "Được phép đăng nhập"],
+          ["blocked", "Đã khóa"],
+        ];
+  state.innerHTML = options
+    .map(([value, label]) => `<option value="${value}">${label}</option>`)
+    .join("");
+  const initialState =
+    parameters.get(view === "links" ? "status" : "state") || "all";
+  state.value = options.some(([value]) => value === initialState)
+    ? initialState
+    : "all";
+  $("#directory-title").textContent =
+    view === "links" ? "Danh sách link" : "Danh sách tài khoản";
+  $("#directory-query-label").textContent =
+    view === "links" ? "Tìm link" : "Tìm tài khoản";
+  query.placeholder =
+    view === "links" ? "Mã, tên, địa chỉ đích hoặc email…" : "Tên hoặc email…";
+  $("#directory-note").textContent =
+    view === "links"
+      ? "Thời gian theo giờ Việt Nam. Trạng thái hết hạn được tính khi tải danh sách. Thông tin của link đã xóa hoặc hết hạn có thể đã được dọn."
+      : "Tổng số tài khoản đã đăng nhập vào dịch vụ. Số link chỉ gồm các link còn gắn với tài khoản, không phải tổng số từng tạo.";
+  let current = parameters.get("cursor") || "",
+    nextCursor: string | null = null;
+  const clearFilter = $<HTMLAnchorElement>("#directory-clear");
+  clearFilter.href = `/admin/?view=${view}`;
+  clearFilter.hidden =
+    !query.value && state.value === "all" && !owner && !current;
+  let requestId = 0,
+    pageLinks: AdminLink[] = [];
+  let historyCursors: string[] = [];
+  const results = $("#directory-results");
+  let loaded = false;
+  let lastHtml = "";
+  let appliedQuery = query.value.trim(),
+    appliedState = state.value;
+  const load = async (
+    cursor = "",
+    direction: "next" | "prev" | "reset" | "refresh" = "reset",
+  ) => {
+    const request = ++requestId;
+    const q = direction === "reset" ? query.value.trim() : appliedQuery,
+      filter = direction === "reset" ? state.value : appliedState;
+    previous.disabled = more.disabled = refresh.disabled = true;
+    results.setAttribute("aria-busy", "true");
+    results.innerHTML = skeleton("links");
+    message("#directory-message", "Đang tải danh sách…");
+    const params = new URLSearchParams({
+      q,
+      [view === "links" ? "status" : "state"]: filter,
+    });
+    if (owner) params.set("owner", owner);
+    if (cursor) params.set("cursor", cursor);
+    try {
+      const data = await api(`/api/admin/${view}?${params}`);
+      if (request !== requestId) return false;
+      if (direction === "next") historyCursors.push(current);
+      else if (direction === "prev") historyCursors.pop();
+      else if (direction === "reset") historyCursors = [];
+      appliedQuery = q;
+      appliedState = filter;
+      if (direction !== "reset") {
+        query.value = q;
+        state.value = filter;
+      }
+      current = cursor;
+      nextCursor = data.next;
+      expiryHold = !!data.expiryHeld;
+      pageLinks = data.links || [];
+      const count = view === "links" ? pageLinks.length : data.users.length;
+      results.innerHTML = count
+        ? view === "links"
+          ? pageLinks.map(directoryLink).join("")
+          : data.users.map(directoryUser).join("")
+        : `<div class="empty">${icon("search-empty")}<h3>${view === "links" ? "Không có link trong danh sách này" : "Không có tài khoản phù hợp"}</h3><p>Thử đổi từ khóa hoặc chọn trạng thái khác.</p></div>`;
+      $("#directory-summary").textContent =
+        view === "links"
+          ? `${Number(data.total).toLocaleString("vi-VN")} link phù hợp${owner ? " thuộc tài khoản này" : ""}. Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản.`
+          : `Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản. ${Number(data.total).toLocaleString("vi-VN")} tài khoản phù hợp bộ lọc.`;
+      $("#directory-page").textContent =
+        `Đang hiển thị ${count} / ${Number(data.total).toLocaleString("vi-VN")} ${view === "links" ? "link" : "tài khoản"}. Mỗi trang tối đa 25.`;
+      if (data.owner) {
+        $("#directory-owner").hidden = false;
+        $("#directory-owner").innerHTML =
+          `<div><strong>${esc(data.owner.name)}</strong><p translate="no">${esc(data.owner.email)}</p><span class="small">${data.owner.blocked ? "Tài khoản đã khóa" : "Được phép đăng nhập"}</span></div><a class="secondary" href="/admin/?view=users">Về danh sách tài khoản</a>`;
+      }
+      const clear = $<HTMLAnchorElement>("#directory-clear");
+      clear.hidden = !q && filter === "all" && !owner && !cursor;
+      clear.href = `/admin/?view=${view}`;
+      params.set("view", view);
+      if (!q) params.delete("q");
+      if (filter === "all")
+        params.delete(view === "links" ? "status" : "state");
+      history.replaceState(null, "", `/admin/?${params}`);
+      lastHtml = results.innerHTML;
+      loaded = true;
+      message(
+        "#directory-message",
+        expiryHold && view === "links" ? expiryHoldNotice : "",
+      );
+      return true;
+    } catch (error) {
+      if (request === requestId) {
+        results.innerHTML = loaded
+          ? lastHtml
+          : '<div class="empty"><h3>Chưa tải được danh sách</h3><p>Chọn Làm mới để thử lại.</p></div>';
+        message(
+          "#directory-message",
+          `${(error as Error).message}${loaded ? " Danh sách vẫn là kết quả trước đó." : ""}`,
+          true,
+        );
+      }
+      return false;
+    } finally {
+      if (request === requestId) {
+        results.removeAttribute("aria-busy");
+        previous.disabled = !current;
+        previous.textContent = historyCursors.length
+          ? "Trang trước"
+          : "Trang đầu";
+        more.disabled = !nextCursor;
+        refresh.disabled = false;
+      }
+    }
+  };
+  setupLinkDialogs(() => load(""));
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void load("");
+  });
+  refresh.onclick = () => void load(current, "refresh");
+  more.onclick = () => {
+    if (nextCursor) void load(nextCursor, "next");
+  };
+  previous.onclick = () => void load(historyCursors.at(-1) || "", "prev");
+  let detailSequence = 0;
+  const detailDialog = $<HTMLDialogElement>("#link-detail-dialog");
+  results.addEventListener("click", async (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      "[data-directory-action]",
+    );
+    if (!button) return;
+    const link = pageLinks.find((l) => l.slug === button.dataset.slug);
+    if (!link) return;
+    if (button.dataset.directoryAction !== "detail") {
+      await openLinkDialog(link, button.dataset.directoryAction || "");
+      return;
+    }
+    const request = ++detailSequence;
+    $("#link-detail-content").innerHTML = skeleton("stats");
+    message("#link-detail-message", "");
+    detailDialog.showModal();
+    detailDialog.querySelector(".dialog-body")!.scrollTop = 0;
+    try {
+      const data = await api<{ link: AdminLink; expiryHeld: boolean }>(
+        `/api/admin/links/${encodeURIComponent(link.slug)}`,
+      );
+      if (request !== detailSequence || !detailDialog.open) return;
+      const l = data.link;
+      const field = (label: string, value: string) =>
+        `<div><dt>${label}</dt><dd>${value}</dd></div>`;
+      $("#link-detail-content").innerHTML =
+        `<p class="dialog-context" translate="no">oh.io.vn/${esc(l.slug)}</p><dl class="link-detail-fields">${field("Tên ghi nhớ", esc(l.label || "Chưa đặt tên"))}${field("Người tạo", l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(l.owner_name)} - ${esc(l.owner_email)}</a>` : esc(ownerLabel(l)))}${field("Địa chỉ đích", esc(l.target || "Đã xóa thông tin"))}${field("Trạng thái", esc(linkStatus(l.effective_status)))}${field("Ngày tạo", date(l.created_at))}${field("Hết hạn", expiryLabel(l))}${field("Hạn do không có lượt mở", date(l.idle_expires_at))}${field("Hạn cố định", l.fixed_expires_at ? date(l.fixed_expires_at) : "Chưa đặt")}${field("Mốc hoạt động gần nhất", date(l.last_access_at))}</dl><p class="small">Mốc hoạt động là lúc tạo link hoặc lượt mở hợp lệ gần nhất. ${data.expiryHeld ? expiryHoldNotice : "Link hết hạn khi đến một trong hai hạn trên, tùy hạn nào đến trước."}</p><div class="dialog-actions">${canEditLink(l, data.expiryHeld) ? `<button class="secondary" id="detail-edit">${icon("edit")}<span>Sửa link</span></button>` : ""}<button class="secondary" id="detail-stats">${icon("stats")}<span>Thống kê</span></button></div>`;
+      $("#detail-edit")?.addEventListener("click", () => {
+        detailDialog.close();
+        void openLinkDialog(l, "edit");
+      });
+      $("#detail-stats").onclick = () => {
+        detailDialog.close();
+        void openLinkDialog(l, "stats");
+      };
+    } catch (error) {
+      if (request === detailSequence && detailDialog.open) {
+        $("#link-detail-content").replaceChildren();
+        message(
+          "#link-detail-message",
+          `${(error as Error).message} Đóng hộp này rồi chọn Chi tiết để thử lại.`,
+          true,
+        );
+      }
+    }
+  });
+  await load(current, "refresh");
+}
+
 async function admin() {
   if (!$("#admin-content")) return;
   if (!me.admin) {
@@ -881,6 +1137,15 @@ async function admin() {
       "Bạn cần đăng nhập bằng tài khoản quản trị để xem trang này.",
       true,
     );
+    return;
+  }
+  $("#admin-nav").hidden = false;
+  const view = new URLSearchParams(location.search).get("view");
+  const currentView =
+    view === "operations" || view === "users" ? view : "links";
+  $(`[data-admin-view="${currentView}"]`).setAttribute("aria-current", "page");
+  if (currentView !== "operations") {
+    await adminDirectory(currentView);
     return;
   }
   message("#admin-message", "Đang tải cấu hình và số liệu…");
