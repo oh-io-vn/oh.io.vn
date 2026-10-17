@@ -278,5 +278,5 @@ Cập nhật ngày 17/10/2026 theo yêu cầu thiết lập domain, repository v
   - Số tài khoản: `0802 8329 999`.
   - Tên/alias đi kèm: `thanhnhanaz`.
   - Ảnh QR gốc: [assets/donate/tpbank-vietqr.png](assets/donate/tpbank-vietqr.png).
-- Giữ nguyên ảnh QR đã cung cấp; không dựng lại hoặc thay đổi nội dung thanh toán. Không thực hiện giao dịch để kiểm tra.
+- Hộp đóng góp chỉ hiển thị thông tin chuyển khoản bằng chữ, không hiển thị ảnh QR. Giữ ảnh gốc trong tài liệu dự án, không đưa vào bản website. Không thực hiện giao dịch để kiểm tra.
 - Ảnh QR và thông tin chuyển khoản là dữ liệu đóng góp do chủ dự án cung cấp; giấy phép MIT của mã nguồn không mặc định cấp quyền sử dụng danh tính hoặc thông tin thanh toán cho mục đích khác.

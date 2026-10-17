@@ -17,6 +17,25 @@
 body {
   margin: 0;
 }
+html,
+dialog {
+  scrollbar-width: thin;
+  scrollbar-color: #a8bfd7 transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #a8bfd7;
+  border-radius: 8px;
+}
+::-webkit-scrollbar-button {
+  display: none;
+}
 html:has(dialog[open]) {
   overflow: hidden;
 }
@@ -405,12 +424,11 @@ dialog h2 {
   justify-content: end;
   margin-top: 24px;
 }
-.donate-qr {
-  display: block;
-  width: min(260px, 100%);
-  margin: 16px auto;
+#donate-dialog {
+  max-width: min(440px, calc(100vw - 32px));
 }
 .donate-info {
+  margin-bottom: 0;
   text-align: center;
   line-height: 1.8;
 }

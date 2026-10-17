@@ -1,9 +1,9 @@
-import { mkdir, writeFile, copyFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 const root = new URL("../src/web/", import.meta.url);
 await mkdir(root, { recursive: true });
 const header = `<header><a class="brand" href="/" aria-label="oh.io.vn, trang chủ">oh<span>.</span>io.vn</a><nav aria-label="Điều hướng"><a href="/dashboard/" id="nav-dashboard" hidden>Link của tôi</a><div id="account" class="user-menu"><a class="quiet" href="/auth/login">Đăng nhập</a></div></nav></header>`;
 const footer = `<footer><div class="links"><a href="/about/">Về dự án</a><a href="/privacy/">Quyền riêng tư</a><a href="/terms/">Quy định</a><a href="/report/">Báo cáo link</a><a href="#donate" data-donate>Đóng góp</a></div></footer>`;
-const donate = `<dialog id="donate-dialog"><div class="dialog-top"><h2>Đóng góp</h2><button class="quiet" data-close aria-label="Đóng">Đóng</button></div><p class="small">Đóng góp tự nguyện để duy trì dịch vụ.</p><img class="donate-qr" src="/donate/tpbank-vietqr.png" alt="Mã VietQR TPBank của Nguyễn Thành Nhân" loading="lazy"><p class="donate-info"><strong>Nguyễn Thành Nhân</strong><br>TPBank · 0802 8329 999<br>Biệt danh: thanhnhanaz</p></dialog>`;
+const donate = `<dialog id="donate-dialog"><div class="dialog-top"><h2>Đóng góp</h2><button class="quiet" data-close aria-label="Đóng">Đóng</button></div><p class="small">Đóng góp tự nguyện để duy trì dịch vụ.</p><p class="donate-info"><strong>Nguyễn Thành Nhân</strong><br>TPBank · 0802 8329 999<br>Biệt danh: thanhnhanaz</p></dialog>`;
 const pages = {
   index: {
     title: "Rút gọn link miễn phí",
@@ -43,8 +43,3 @@ for (const [name, p] of Object.entries(pages)) {
   const html = `<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${p.title} · oh.io.vn</title><meta name="description" content="${p.description ?? p.title + ". oh.io.vn, công cụ rút gọn link miễn phí bằng tiếng Việt."}"><meta name="theme-color" content="#f8fbff"><link rel="icon" href="data:,">${p.private ? '<meta name="robots" content="noindex,nofollow">' : `<link rel="canonical" href="https://oh.io.vn${path}"><meta property="og:type" content="website"><meta property="og:locale" content="vi_VN"><meta property="og:title" content="${p.title} · oh.io.vn"><meta property="og:url" content="https://oh.io.vn${path}">`}<script type="module" src="/main.ts"></script></head><body>${header}<main><div id="global-notice" class="notice error" role="status"></div>${p.body}</main>${footer}${donate}</body></html>`;
   await writeFile(new URL(name + ".html", root), html);
 }
-await mkdir(new URL("../public/donate/", import.meta.url), { recursive: true });
-await copyFile(
-  new URL("../assets/donate/tpbank-vietqr.png", import.meta.url),
-  new URL("../public/donate/tpbank-vietqr.png", import.meta.url),
-);

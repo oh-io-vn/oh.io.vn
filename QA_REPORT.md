@@ -4,6 +4,8 @@ Ngày kiểm tra: 17/10/2026. Bản sửa đã triển khai lên https://oh.io.v
 
 ## Lần tối giản giao diện tiếp theo
 
+Bổ sung theo yêu cầu bỏ ảnh đóng góp: hộp thoại chỉ còn thông tin chuyển khoản bằng chữ và có chiều rộng tối đa 440 px. Ảnh gốc giữ trong tài liệu dự án, không còn được sao chép vào bản website. Thanh cuộn của trang và hộp thoại dùng dạng mảnh, vẫn cuộn được khi nội dung dài. Kiểm tra hộp đóng góp ở khung 320 × 390, 390 × 844 và 1280 × 700 đều không tràn, không chứa ảnh và không cần cuộn. Kiểm tra kiểu và bản build thành công.
+
 - Bỏ khẩu hiệu, các khối giới thiệu trên trang chủ, tên tài khoản trên thanh điều hướng và câu lặp trong trang quản lý. Giữ thông tin thời hạn, lỗi và xác nhận xóa.
 - Chữ giao diện dùng chung cỡ 16 px. Nội dung do ứng dụng viết không dùng chữ hoa toàn bộ, dấu chấm phẩy, gạch chéo hoặc gạch ngang dài làm dấu câu. Ngày được viết bằng chữ. Địa chỉ và dữ liệu người dùng giữ nguyên.
 - Đo lại bảy trang tại khung rộng 320, 390, 768 và 1280 px. Cả 28 trường hợp có chiều rộng nội dung không vượt viewport và chữ hiển thị đều là 16 px. Không phát hiện dấu chấm phẩy hoặc hai loại gạch ngang dài trong chữ đang hiển thị.
