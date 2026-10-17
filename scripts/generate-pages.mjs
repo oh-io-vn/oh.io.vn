@@ -4,7 +4,7 @@ await mkdir(root, { recursive: true });
 const linkIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m10 13 4-4M8 16l-1 1a4.24 4.24 0 0 1-6-6l4-4a4.24 4.24 0 0 1 6 0m2 1 1-1a4.24 4.24 0 0 1 6 6l-4 4a4.24 4.24 0 0 1-6 0" transform="translate(1 0)"/></svg>`;
 const header = `<a class="skip-link" href="#main-content">Đến nội dung chính</a><header class="site-header"><div class="header-inner"><a class="brand" href="/" aria-label="oh.io.vn, trang chủ"><span class="brand-mark">${linkIcon}</span>oh<span class="brand-domain">.io.vn</span></a><nav aria-label="Điều hướng"><a class="nav-link" href="/">Rút gọn link</a><a class="nav-link" href="/dashboard/" id="nav-dashboard" hidden>Link của tôi</a><a class="nav-link nav-about" href="/about/">Về dự án</a></nav><div id="account" class="user-menu" role="group" aria-label="Tài khoản"><a class="quiet" href="/auth/login">Đăng nhập</a></div></div></header>`;
 const footer = `<footer class="site-footer"><div class="footer-inner"><a class="footer-brand" href="/">oh.io.vn<span>Rút gọn link miễn phí.</span></a><nav class="links" aria-label="Thông tin dịch vụ"><a href="/about/">Về dự án</a><a href="/privacy/">Quyền riêng tư</a><a href="/terms/">Quy định</a><a href="/report/">Báo cáo vi phạm</a><button class="footer-action" type="button" data-donate>Đóng góp</button></nav></div></footer>`;
-const donate = `<dialog id="donate-dialog" aria-labelledby="donate-title"><div class="dialog-top"><h2 id="donate-title">Đóng góp</h2><button class="quiet" data-close aria-label="Đóng">Đóng</button></div><p class="small">Đóng góp tự nguyện để duy trì dịch vụ.</p><p class="donate-info"><strong>Nguyễn Thành Nhân</strong><br>TPBank · 0802 8329 999<br>Biệt danh: thanhnhanaz</p></dialog>`;
+const donate = `<dialog id="donate-dialog" aria-labelledby="donate-title"><div class="dialog-top"><h2 id="donate-title">Đóng góp cho oh.io.vn</h2><button class="quiet" data-close aria-label="Đóng">Đóng</button></div><p class="small">Đóng góp tự nguyện để duy trì dịch vụ.</p><p class="donate-info">Chủ tài khoản: <strong>Nguyễn Thành Nhân</strong><br>TPBank · 0802 8329 999<br>Biệt danh: thanhnhanaz</p></dialog>`;
 const pages = {
   index: {
     title: "Rút gọn link miễn phí",
@@ -43,16 +43,16 @@ const pages = {
       <p>oh.io.vn nhận mã định danh Google, email và tên hiển thị của bạn. Dịch vụ không yêu cầu quyền đọc Gmail hoặc Drive. Phiên đăng nhập có thời hạn 7 ngày và sử dụng cookie cần thiết.</p>
       <h2>Khi bạn tạo hoặc mở link</h2>
       <p>Mỗi link lưu mã link, địa chỉ đích, tên ghi nhớ nếu có, tài khoản tạo link nếu có, thời gian tạo, lần mở gần nhất và thời hạn. Ai có link đang hoạt động đều có thể mở địa chỉ đích. Đừng dùng link để giữ bí mật hoặc chia sẻ thông tin nhạy cảm.</p>
-      <p>Để giới hạn thao tác và bảo vệ dịch vụ, hệ thống tạo một mã từ địa chỉ IP. Chúng tôi lưu mã này trong cửa sổ giới hạn 24 giờ, thay vì lưu địa chỉ IP gốc trong dữ liệu giới hạn. Cloudflare xử lý địa chỉ IP và tín hiệu trình duyệt để cung cấp hạ tầng và xác minh bằng Turnstile.</p>
+      <p>Để giới hạn thao tác và bảo vệ dịch vụ, hệ thống tạo một mã từ địa chỉ IP. oh.io.vn lưu mã này trong cửa sổ giới hạn 24 giờ, thay vì lưu địa chỉ IP gốc trong dữ liệu giới hạn. Cloudflare xử lý địa chỉ IP và tín hiệu trình duyệt để cung cấp hạ tầng và xác minh bằng Turnstile.</p>
       <h2>Thống kê lượt mở</h2>
       <p>Chỉ chủ link xem được số lượt mở tổng hợp theo ngày, nhóm nguồn truy cập và nhóm thiết bị trong 30 ngày gần nhất. Dữ liệu thống kê không lưu địa chỉ đầy đủ của trang dẫn người dùng đến link hoặc nhật ký của từng người mở link. Khi không xác định được nguồn, thống kê hiển thị “Không xác định”. Việc nhận diện bot, thiết bị và nguồn truy cập có thể sai.</p>
       <h2>Thời gian lưu dữ liệu</h2>
       <p>Thống kê lượt mở được dọn sau 30 ngày. Dữ liệu dùng để giới hạn thao tác được dọn sau cửa sổ 24 giờ. Nhật ký thao tác quản trị được dọn sau 7 ngày. Thông tin về các đợt gián đoạn thống kê được dọn sau 30 ngày kể từ khi kết thúc. Việc dọn chạy định kỳ nên có thể có độ trễ.</p>
-      <p>Khi link bị dọn, hệ thống vẫn giữ dấu mã để không cấp mã đó cho người khác. Bản sao lưu được mã hóa, lưu trong kho riêng tư ngoài hệ thống chính và giữ tối đa 7 ngày. Nếu khôi phục bản sao lưu, chúng tôi phải áp dụng lại những yêu cầu xóa dữ liệu đã xác minh.</p>
+      <p>Khi link bị dọn, hệ thống vẫn giữ dấu mã để không cấp mã đó cho người khác. Bản sao lưu được mã hóa, lưu trong kho riêng tư ngoài hệ thống chính và giữ tối đa 7 ngày. Nếu khôi phục bản sao lưu, oh.io.vn phải áp dụng lại những yêu cầu xóa dữ liệu đã xác minh.</p>
       <h2>Dịch vụ bên thứ ba</h2>
       <p>oh.io.vn dùng Cloudflare để lưu trữ, chuyển hướng và xác minh; Google để đăng nhập; GitHub để công khai mã nguồn và lưu bản sao lưu trong kho riêng tư. Khi bạn mở link, trang đích áp dụng chính sách riêng của họ.</p>
       <h2>Yêu cầu xem hoặc xóa dữ liệu</h2>
-      <p>Gửi email từ địa chỉ Google đã dùng để đăng nhập đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. Chúng tôi sẽ xác minh tài khoản trước khi xử lý. Mục tiêu là phản hồi trong 7 ngày; việc xác minh có thể cần thêm thời gian.</p>
+      <p>Gửi email từ địa chỉ Google đã dùng để đăng nhập đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. oh.io.vn sẽ xác minh tài khoản trước khi xử lý. Mục tiêu là phản hồi trong 7 ngày; việc xác minh có thể cần thêm thời gian.</p>
       <p>Nếu bạn yêu cầu xóa tài khoản, các link liên quan sẽ ngừng hoạt động. Hệ thống vẫn giữ dấu mã link để không cấp lại.</p>
     </article>`,
   },
@@ -66,22 +66,22 @@ const pages = {
       <h2>Nội dung và hành vi bị cấm</h2>
       <p>Không dùng dịch vụ để lừa đảo, đánh cắp thông tin, phát tán mã độc, gửi spam, xâm hại người khác hoặc chia sẻ nội dung vi phạm pháp luật. Không tìm cách vượt giới hạn sử dụng, phá hoại hay cố ý làm cạn tài nguyên của dịch vụ.</p>
       <h2>Trách nhiệm và cách xử lý vi phạm</h2>
-      <p>Bạn chịu trách nhiệm về địa chỉ đích và quyền chia sẻ nội dung đó. Để xử lý vi phạm hoặc bảo vệ dịch vụ, chúng tôi có thể chặn địa chỉ đích, vô hiệu hóa link hoặc khóa tài khoản.</p>
+      <p>Bạn chịu trách nhiệm về địa chỉ đích và quyền chia sẻ nội dung đó. Để xử lý vi phạm hoặc bảo vệ dịch vụ, oh.io.vn có thể chặn địa chỉ đích, vô hiệu hóa link hoặc khóa tài khoản.</p>
       <p>Khóa tài khoản sẽ ngăn bạn đăng nhập và quản lý link. Việc chặn các link của tài khoản là thao tác xử lý riêng.</p>
       <h2>Quản lý và thời hạn của link</h2>
       <p>Link tạo khi chưa đăng nhập không thể quản lý hoặc nhận lại sau khi đăng nhập. Mã link đã dùng sẽ không được cấp lại, kể cả khi link bị xóa hoặc hết hạn. Xem <a href="/about/#thoi-han">thời hạn và giới hạn tạo link</a>.</p>
       <h2>Khả năng phục vụ</h2>
-      <p>Dịch vụ chạy trên hạ tầng miễn phí có giới hạn. Chúng tôi cố gắng duy trì link nhưng không cam kết link tồn tại vĩnh viễn, trang luôn truy cập được hoặc thống kê luôn đầy đủ. Hãy cân nhắc trước khi in link lên tài liệu không thể sửa.</p>
+      <p>Dịch vụ chạy trên hạ tầng miễn phí có giới hạn. oh.io.vn cố gắng duy trì link nhưng không cam kết link tồn tại vĩnh viễn, trang luôn truy cập được hoặc thống kê luôn đầy đủ. Hãy cân nhắc trước khi in link lên tài liệu không thể sửa.</p>
       <p>Đóng góp là tự nguyện. Việc đóng góp không đồng nghĩa với mua dịch vụ hoặc được tăng giới hạn sử dụng. Quy định này áp dụng cho dịch vụ; mã nguồn có giấy phép riêng.</p>
       <h2>Báo cáo vi phạm</h2>
-      <p>Gửi link, lý do báo cáo và bằng chứng nếu có đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. Chúng tôi sẽ xem xét và xử lý vi phạm được xác nhận.</p>
+      <p>Gửi link, lý do báo cáo và bằng chứng nếu có đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. oh.io.vn sẽ xem xét và xử lý vi phạm được xác nhận.</p>
     </article>`,
   },
   report: {
     title: "Báo cáo link vi phạm",
     description:
       "Cách báo cáo link oh.io.vn vi phạm: gửi link, lý do và bằng chứng nếu có qua email.",
-    body: `<article class="prose"><h1>Báo cáo link vi phạm</h1><p class="lead">Gửi link và lý do đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. Kèm bằng chứng nếu có.</p><p>Không gửi mật khẩu, mã đăng nhập hoặc dữ liệu nhạy cảm.</p><div class="report-actions"><a class="primary" href="mailto:hi@oh.io.vn?subject=B%C3%A1o%20c%C3%A1o%20link%20vi%20ph%E1%BA%A1m">Soạn email báo cáo</a><button class="secondary" id="copy-report-email" type="button">Sao chép địa chỉ email</button></div><div id="report-message" class="notice error" role="status"></div><div class="report-guidance"><h2>Thông tin cần gửi</h2><ul><li>Link oh.io.vn cần báo cáo.</li><li>Lý do báo cáo và bằng chứng nếu có.</li></ul></div><p>Chúng tôi xem từng báo cáo và vô hiệu hóa link vi phạm được xác nhận. Không bảo đảm phát hiện mọi link độc hại trước khi có báo cáo. Bạn không cần mở lại địa chỉ đáng ngờ để lấy thêm bằng chứng.</p></article>`,
+    body: `<article class="prose"><h1>Báo cáo link vi phạm</h1><p class="lead">Gửi link và lý do đến <a href="mailto:hi@oh.io.vn">hi@oh.io.vn</a>. Kèm bằng chứng nếu có.</p><p>Không gửi mật khẩu, mã đăng nhập hoặc dữ liệu nhạy cảm.</p><div class="report-actions"><a class="primary" href="mailto:hi@oh.io.vn?subject=B%C3%A1o%20c%C3%A1o%20link%20vi%20ph%E1%BA%A1m">Soạn email báo cáo</a><button class="secondary" id="copy-report-email" type="button">Sao chép địa chỉ email</button></div><div id="report-message" class="notice error" role="status"></div><div class="report-guidance"><h2>Thông tin cần gửi</h2><ul><li>Link oh.io.vn cần báo cáo.</li><li>Lý do báo cáo và bằng chứng nếu có.</li></ul></div><p>oh.io.vn xem từng báo cáo và vô hiệu hóa link vi phạm được xác nhận. Không bảo đảm phát hiện mọi link độc hại trước khi có báo cáo. Bạn không cần mở lại địa chỉ đáng ngờ để lấy thêm bằng chứng.</p></article>`,
   },
 };
 for (const [name, p] of Object.entries(pages)) {

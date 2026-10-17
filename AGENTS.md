@@ -53,6 +53,8 @@
 - Viết tiếng Việt tự nhiên, câu ngắn và rõ nghĩa. Ưu tiên sự rõ ràng hơn hoa mỹ.
 - Nội dung giới thiệu và lời xưng hô dùng “oh.io.vn” hoặc cách viết trung tính;
   không dùng tên riêng của chủ dự án để tự giới thiệu dịch vụ.
+- Giữ đúng tên chủ tài khoản trong thông tin chuyển khoản và tên chủ bản quyền
+  trong giấy phép; đây là định danh, không thay bằng tên dịch vụ.
 - Dùng nhất quán: “link”, “địa chỉ đích”, “mã link”, “tên ghi nhớ”, “lượt truy cập”.
 - Nút dùng động từ cụ thể: “Rút gọn link”, “Lưu thay đổi”, “Xóa link”, “Tìm link”.
 - Thông báo lỗi nói rõ vấn đề và bước xử lý. Trạng thái đang chờ kết thúc bằng “…”.
