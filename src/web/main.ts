@@ -1306,7 +1306,7 @@ async function admin() {
       const m = JSON.parse(data.policy.monitoring);
       if (m) {
         const resources: [string, number, number][] = [
-          ["Yêu cầu hôm nay", m.requests, 100000],
+          ["Yêu cầu chạy Worker", m.requests, 100000],
           ["Dòng dữ liệu đã đọc", m.reads, 5000000],
           ["Dòng dữ liệu đã ghi", m.writes, 100000],
           ["Dung lượng cơ sở dữ liệu (byte)", m.databaseBytes, 500000000],
@@ -1318,7 +1318,7 @@ async function admin() {
                 `<div class="stat-row"><span>${name}</span><strong>${Number(value).toLocaleString("vi-VN")} trên ${limit.toLocaleString("vi-VN")} (${((value / limit) * 100).toFixed(1)}%)</strong></div>`,
             )
             .join("") +
-          `<p class="small">Cập nhật lúc ${date(m.at)}. Bộ đếm tính theo giờ UTC và có thể cập nhật chậm. Chế độ bảo vệ tài nguyên: ${m.level ? `mức ${m.level}` : "bình thường"}.</p>`;
+          `<p class="small">Yêu cầu Worker và số dòng đọc/ghi được cộng trên toàn tài khoản Cloudflare, đặt lại lúc 07:00 mỗi ngày (giờ Việt Nam). Đây không phải số người truy cập. Bot, API và tác vụ định kỳ cũng sử dụng tài nguyên.</p><p class="small">Dung lượng là của cơ sở dữ liệu oh.io.vn. Cập nhật lúc ${date(m.at)}, kiểm tra mỗi 10 phút và có thể có độ trễ. Chế độ bảo vệ tài nguyên: ${m.level ? `mức ${m.level}` : "bình thường"}.</p>`;
       }
     } catch {
       /* Missing or incomplete snapshots are shown explicitly. */
@@ -1385,7 +1385,7 @@ async function admin() {
       String(f.get("value")),
       f.get("kind") === "host"
         ? "Các link trỏ đến tên miền này và tên miền con sẽ không mở được."
-        : "Các link trỏ đến đúng địa chỉ này sẽ không mở được.",
+        : "Các link trỏ đến địa chỉ này sẽ bị chặn, kể cả khi phần sau dấu # khác nhau.",
       "#block-message",
       "Đã thêm địa chỉ vào danh sách chặn.",
       () => form.reset(),

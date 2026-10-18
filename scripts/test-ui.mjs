@@ -96,7 +96,7 @@ try {
   await page.route("https://challenges.cloudflare.com/**", (route) =>
     route.fulfill({
       contentType: "text/javascript",
-      body: 'let opts;window.turnstile={render:(n,o)=>(opts=o,"local-ui-fixture"),reset:()=>{},execute:()=>opts.callback("local-ui-fixture-token")};',
+      body: 'let opts;window.turnstile={render:(n,o)=>{opts=o;window.__turnstileLayout={width:n.clientWidth,height:n.clientHeight,size:o.size};return "local-ui-fixture"},reset:()=>{},execute:()=>opts.callback("local-ui-fixture-token")};',
     }),
   );
   await page.route("**/api/**", async (route) => {
@@ -597,6 +597,25 @@ try {
       await page.setViewportSize({ width, height: width < 700 ? 844 : 1000 });
       for (const path of paths) {
         await goto(path);
+        if (path === "/") {
+          await page.waitForFunction(() => window.__turnstileLayout);
+          const layout = await page.evaluate(() => window.__turnstileLayout);
+          assert(
+            layout.width > 0,
+            "Empty verification container must be measurable",
+          );
+          assert.equal(
+            layout.height,
+            0,
+            "Empty verification container leaves no blank space",
+          );
+          assert.equal(
+            layout.size,
+            layout.width < 300 ? "compact" : "flexible",
+            "Turnstile size must follow the available form width",
+          );
+          if (width >= 390) assert.equal(layout.size, "flexible");
+        }
         const name = `${mode}-${path === "/" ? "home" : path.split("/")[1]}-${width}`;
         measurements.push(await measure(name));
         assert.equal(await page.locator("h1").count(), 1);

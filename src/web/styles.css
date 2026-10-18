@@ -486,8 +486,7 @@ input[type="datetime-local"] {
 .hint {
   margin: var(--space-4) 0 0;
 }
-.hint:empty,
-.turnstile:empty {
+.hint:empty {
   display: none;
 }
 .account-hint a {
@@ -617,6 +616,7 @@ summary::-webkit-details-marker {
   margin-top: var(--space-4);
 }
 .turnstile {
+  /* Keep the empty container measurable when Turnstile chooses its size. */
   min-height: 0;
 }
 .notice {
@@ -964,8 +964,23 @@ dialog {
   border-bottom: 1px solid var(--line);
   text-wrap: balance;
 }
-.prose ul {
+.prose ul,
+.prose ol {
   padding-left: 22px;
+}
+.prose li + li {
+  margin-top: var(--space-2);
+}
+.contents-nav {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+.contents-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .prose .primary {
   color: white;

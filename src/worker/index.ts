@@ -25,6 +25,7 @@ import {
 export { ExpiryGuard } from "./guard";
 import {
   addMonths,
+  blockTargetValue,
   deviceGroup,
   fixedExpiry,
   knownBot,
@@ -44,8 +45,9 @@ app.use("*", async (c, next) => {
   c.header("Referrer-Policy", "strict-origin-when-cross-origin");
   c.header("X-Frame-Options", "DENY");
   c.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-  if (c.req.path.startsWith("/api") || c.req.path.startsWith("/auth"))
-    c.header("X-Robots-Tag", "noindex, nofollow");
+  // Public pages are served by the assets binding. Worker responses are API,
+  // authentication, user-created redirects or errors, never search landing pages.
+  c.header("X-Robots-Tag", "noindex, nofollow");
 });
 app.onError((error, c) => {
   if (error instanceof HTTPException)
@@ -62,6 +64,18 @@ app.use("/api/*", async (c, next) => {
     await next();
     return;
   }
+  // Bound API work before any D1 query, including rejected/unauthenticated calls.
+  // Reads have a separate budget so loading a page does not consume write quota.
+  const reading = ["GET", "HEAD"].includes(c.req.method);
+  const limiter = reading ? c.env.API_READ_BURST : c.env.BURST;
+  const rate = await limiter.limit({ key: await networkKey(c) });
+  if (!rate.success) {
+    c.header("Retry-After", "60");
+    return c.json(
+      { error: "Bạn đang thao tác quá nhanh. Thử lại sau một phút." },
+      429,
+    );
+  }
   const user = await currentUser(c);
   c.set("user", user);
   const p = await policy(c.env);
@@ -74,19 +88,13 @@ app.use("/api/*", async (c, next) => {
       (c.env.ADMIN_GOOGLE_SUBS.split(",").includes(user.id) ||
         p?.admin_sub === user.id),
   );
-  if (!["GET", "HEAD"].includes(c.req.method)) {
+  if (!reading) {
     if (!(await checkWrite(c)))
       return c.json({ error: "Yêu cầu không hợp lệ. Hãy tải lại trang." }, 403);
     if (user?.blocked && c.req.path !== "/api/logout")
       return c.json(
         { error: "Tài khoản đã bị khóa. Liên hệ hi@oh.io.vn." },
         403,
-      );
-    const result = await c.env.BURST.limit({ key: await networkKey(c) });
-    if (!result.success)
-      return c.json(
-        { error: "Bạn đang thao tác quá nhanh. Thử lại sau một phút." },
-        429,
       );
   }
   await next();
@@ -341,10 +349,13 @@ app.post("/api/admin/action", async (c) => {
   else if (action === "add_block" || action === "remove_block") {
     const kind = b.kind === "url" ? "url" : "host";
     let value = subject;
+    let legacyValue = subject;
     try {
-      if (kind === "url")
-        value = targetValue(value, c.env.APP_ORIGIN).toString();
-      else {
+      if (kind === "url") {
+        const target = targetValue(value, c.env.APP_ORIGIN);
+        legacyValue = target.toString();
+        value = blockTargetValue(target);
+      } else {
         const url = targetValue("https://" + value, c.env.APP_ORIGIN);
         if (url.pathname !== "/" || url.search || url.port) throw new Error();
         value = url.hostname;
@@ -352,13 +363,19 @@ app.post("/api/admin/action", async (c) => {
     } catch {
       return c.json({ error: "Địa chỉ chặn không hợp lệ." }, 400);
     }
-    await c.env.DB.prepare(
-      action === "add_block"
-        ? "INSERT OR IGNORE INTO blocked_targets(kind,value) VALUES(?,?)"
-        : "DELETE FROM blocked_targets WHERE kind=? AND value=?",
-    )
-      .bind(kind, value)
-      .run();
+    if (action === "add_block")
+      await c.env.DB.prepare(
+        "INSERT OR IGNORE INTO blocked_targets(kind,value) VALUES(?,?)",
+      )
+        .bind(kind, value)
+        .run();
+    else
+      // Accept both the canonical value and entries saved by older versions.
+      await c.env.DB.prepare(
+        "DELETE FROM blocked_targets WHERE kind=? AND value IN (?,?,?)",
+      )
+        .bind(kind, value, subject, legacyValue)
+        .run();
   } else if (action === "policy") {
     const old = c.get("policy");
     const fields = [

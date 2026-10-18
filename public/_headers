@@ -8,3 +8,10 @@
   X-Robots-Tag: noindex, nofollow
 /admin/*
   X-Robots-Tag: noindex, nofollow
+
+# Vite assets use content hashes. HTML must continue to revalidate on each visit.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/deployment.json
+  X-Robots-Tag: noindex, nofollow

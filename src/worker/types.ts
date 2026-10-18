@@ -2,6 +2,7 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   BURST: RateLimit;
+  API_READ_BURST: RateLimit;
   EXPIRY_GUARD: DurableObjectNamespace;
   ENVIRONMENT: string;
   APP_ORIGIN: string;

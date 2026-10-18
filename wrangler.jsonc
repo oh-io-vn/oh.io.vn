@@ -22,6 +22,14 @@
   ],
   "ratelimits": [
     {
+      "name": "API_READ_BURST",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 120,
+        "period": 60,
+      },
+    },
+    {
       "name": "BURST",
       "namespace_id": "1001",
       "simple": {

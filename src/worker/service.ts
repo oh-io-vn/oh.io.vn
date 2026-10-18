@@ -1,5 +1,6 @@
 import type { Env, Policy, Link } from "./types";
 import { monitor } from "./monitor";
+import { blockTargetValue, canonicalHostname } from "../shared/rules";
 export const policy = (env: Env) =>
   env.DB.prepare("SELECT * FROM policy WHERE id=1").first<Policy>();
 export const expiryHeld = (p: Policy, now: number) =>
@@ -19,12 +20,34 @@ export async function incidentHold(
   } // If the independent guard cannot be read, preserve inactivity-expired links.
 }
 export async function blocked(env: Env, url: URL): Promise<boolean> {
-  const parts = url.hostname.split(".");
-  const hosts = parts.map((_, i) => parts.slice(i).join("."));
+  const parts = canonicalHostname(url.hostname).split(".");
+  const hosts = parts.flatMap((_, i) => {
+    const host = parts.slice(i).join(".");
+    return [host, host + "."];
+  });
+  const target = blockTargetValue(url);
+  const dottedTarget = new URL(target);
+  dottedTarget.hostname += ".";
+  // Match older entries that contain a fragment or a DNS root dot as well.
+  // Keep path, scheme and query distinctions: they can identify different resources.
+  const fragments = (value: string) =>
+    value.replaceAll("[", "[[]").replaceAll("?", "[?]").replaceAll("*", "[*]") +
+    "#*";
+  // Each branch uses the (kind,value) index; do not normalize every stored row
+  // on every redirect, which would turn a block check into a table scan.
   const found = await env.DB.prepare(
-    `SELECT 1 AS found FROM blocked_targets WHERE (kind='url' AND value=?) OR (kind='host' AND value IN (${hosts.map(() => "?").join(",")})) LIMIT 1`,
+    `SELECT 1 AS found FROM blocked_targets WHERE kind='host' AND value IN (SELECT value FROM json_each(?))
+      UNION ALL SELECT 1 FROM blocked_targets WHERE kind='url' AND value IN (?,?)
+      UNION ALL SELECT 1 FROM blocked_targets WHERE kind='url' AND value GLOB ?
+      UNION ALL SELECT 1 FROM blocked_targets WHERE kind='url' AND value GLOB ? LIMIT 1`,
   )
-    .bind(url.toString(), ...hosts)
+    .bind(
+      JSON.stringify(hosts),
+      target,
+      dottedTarget.toString(),
+      fragments(target),
+      fragments(dottedTarget.toString()),
+    )
     .first();
   return !!found;
 }

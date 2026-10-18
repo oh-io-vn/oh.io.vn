@@ -39,6 +39,17 @@ export function slugValue(value: unknown): string {
   if (RESERVED.has(slug)) throw new Error("Mã này được dành cho hệ thống.");
   return slug;
 }
+export const canonicalHostname = (hostname: string): string =>
+  hostname.toLowerCase().replace(/\.+$/, "");
+
+// A fragment is handled by the browser, not the destination HTTP server.
+// Ignore it only for moderation comparisons; ordinary links keep their fragment.
+export function blockTargetValue(url: URL): string {
+  const target = new URL(url);
+  target.hostname = canonicalHostname(target.hostname);
+  target.hash = "";
+  return target.toString();
+}
 export function targetValue(value: unknown, origin = "https://oh.io.vn"): URL {
   if (typeof value !== "string" || value.length > 4096)
     throw new Error("Địa chỉ tối đa 4.096 ký tự.");
@@ -52,9 +63,9 @@ export function targetValue(value: unknown, origin = "https://oh.io.vn"): URL {
     throw new Error("Chỉ hỗ trợ link bắt đầu bằng http:// hoặc https://.");
   if (u.username || u.password)
     throw new Error("Địa chỉ web không được chứa thông tin đăng nhập.");
-  const h = u.hostname.toLowerCase().replace(/\.$/, "");
+  const h = canonicalHostname(u.hostname);
   if (
-    h === new URL(origin).hostname ||
+    h === canonicalHostname(new URL(origin).hostname) ||
     h === "oh.io.vn" ||
     h.endsWith(".oh.io.vn")
   )

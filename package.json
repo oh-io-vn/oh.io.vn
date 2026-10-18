@@ -12,6 +12,9 @@
     "build": "npm run typecheck && npm run build:web && wrangler deploy --dry-run --outdir .local/worker-build",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.web.json",
     "test": "vitest run && node --test tests/*.node.test.mjs",
+    "test:security": "vitest run tests/security.test.ts tests/oauth-security.test.ts",
+    "security:audit": "npm audit --audit-level=moderate",
+    "security:secrets": "node scripts/security-scan.mjs",
     "db:local": "wrangler d1 migrations apply oh-io-vn --local",
     "db:remote": "wrangler d1 migrations apply oh-io-vn --remote",
     "deploy": "npm run build && wrangler deploy"

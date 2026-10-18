@@ -49,6 +49,27 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 describe("D1 và đường chuyển hướng thật", () => {
+  it("không index link người dùng và lỗi, vẫn giữ chuyển hướng và quyền API", async () => {
+    await insert("seo-private-link");
+    for (const [path, status] of [
+      ["/seo-private-link", 302],
+      ["/seo-does-not-exist", 404],
+      ["/api/links", 401],
+      ["/api/admin/links", 403],
+    ] as const) {
+      const response = await SELF.fetch("http://localhost" + path, {
+        method: "HEAD",
+        redirect: "manual",
+      });
+      expect(response.status).toBe(status);
+      expect(response.headers.get("X-Robots-Tag")).toBe("noindex, nofollow");
+      expect(response.headers.get("Cache-Control")).toBe("no-store");
+      if (status === 302)
+        expect(response.headers.get("Location")).toBe(
+          "https://example.com/page",
+        );
+    }
+  });
   it("thống kê báo tạm dừng khi hệ thống tự giảm tải dù công tắc thủ công vẫn bật", async () => {
     await insert("quota-stats");
     const token = "e".repeat(64);

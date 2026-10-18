@@ -168,3 +168,122 @@ Các skill thiết kế, gồm `iconography`, nằm trong `.agents/skills/`; ngu
 `.agents/skills/SOURCES.md`. Đọc trực tiếp hướng dẫn nếu Codex chưa nhận skill mới.
 Ba skill nội dung đã cài ở cấp người dùng, không cần cài lại. Chỉ chạy script
 bên thứ ba sau khi đọc nội dung; hướng dẫn của project và người dùng có ưu tiên.
+
+## SEO RULES
+
+- Metadata và nội dung chính phải có trong HTML ban đầu. Dùng `scripts/seo.mjs`
+  và cấu hình trang trong `scripts/generate-pages.mjs`, không chèn SEO sau khi JS chạy.
+- Chỉ khai báo `indexable: true` cho trang công khai có nội dung hữu ích. Trang
+  mới mặc định noindex. `private: true` luôn thắng mọi cấu hình indexable.
+- Mỗi trang công khai có title, description riêng, một H1 rõ nghĩa, canonical
+  HTTPS đúng đường dẫn, Open Graph và metadata chia sẻ nhất quán với nội dung.
+- Sitemap được sinh từ chính các trang indexable. Không thêm admin, dashboard,
+  API, auth, link người dùng, URL chuyển hướng, query hay lastmod không có căn cứ.
+- Giữ canonical `https://oh.io.vn/` và quy tắc trailing slash của các trang tĩnh.
+  Không đổi URL hoặc cấu hình DNS/redirect production khi chưa được yêu cầu.
+- Giữ chính sách robots hiện có. Robots không thay thế xác thực. API, auth,
+  chuyển hướng link người dùng và trang lỗi của Worker có `X-Robots-Tag: noindex`.
+  Không áp dụng header này cho các trang công khai từ assets binding.
+- Giữ internal links dễ hiểu, có đích tồn tại. Không nhồi từ khóa, thêm trang
+  mỏng, hoặc đổi lỗi 404 thành trang chủ 200 để che vấn đề crawl.
+- Cache dài chỉ cho tài nguyên có content hash trong `/assets/`. HTML phải
+  revalidate, API và dữ liệu xác thực vẫn `no-store`.
+
+## AEO RULES
+
+- Trả lời trực tiếp câu hỏi thực tế: cách tạo, đăng nhập, chỉnh sửa, thời hạn,
+  giới hạn và báo cáo vi phạm. Dùng các bước khi người dùng cần làm theo.
+- Nội dung hướng dẫn phải khớp API và hành vi sản phẩm, nhất là đổi mã link,
+  quyền quản lý, thời hạn và hạn mức. Không bịa chức năng hay cam kết.
+- Dùng câu ngắn, heading có nghĩa. Không chia nhỏ văn bản theo số từ máy móc.
+  FAQ chỉ thêm khi giúp người đọc, không tự động thêm FAQ rich-result schema.
+
+## GEO RULES
+
+- Nhận diện dịch vụ bằng `oh.io.vn`, với thông tin công khai chính xác và liên
+  kết nguồn thật. Không gán tên cá nhân, thành tích, đánh giá hoặc số liệu giả.
+- Giữ cùng nội dung cho người dùng và crawler. Không cloaking, tài liệu AI riêng
+  mâu thuẫn với website, hoặc mở dữ liệu riêng tư để được AI truy cập.
+- Phân biệt crawler tìm kiếm, truy xuất theo yêu cầu và huấn luyện. Không thay
+  chính sách Cloudflare/robots chỉ vì muốn tăng lượt trích dẫn.
+- Không coi `llms.txt` hay schema đặc biệt là điều kiện xuất hiện trong AI Search.
+  Chỉ thêm định dạng mới khi có bên sử dụng cụ thể và kế hoạch duy trì.
+- Không suy ra đã index, được AI trích dẫn hoặc tăng thứ hạng từ test localhost.
+
+## STRUCTURED DATA RULES
+
+- Dùng JSON-LD trong HTML với `@id` ổn định, bám sát nội dung hiển thị. WebSite
+  mô tả thương hiệu, WebPage/AboutPage/ContactPage mô tả đúng loại trang.
+- Chỉ dùng WebApplication cho công cụ thật. Schema.org hợp lệ không đồng nghĩa
+  đủ điều kiện Google rich results. Không bịa offers, ratings, reviews hoặc tác giả.
+- Không gắn JSON-LD hoặc metadata chia sẻ công khai vào trang riêng tư.
+- Kiểm tra JSON-LD trong cả response và DOM. Xác thực Schema.org, kiểm tra
+  điều kiện Google hiện hành khi nhắm tới một rich result cụ thể.
+- Ảnh chia sẻ và favicon dùng logo thật, không thêm lời quảng cáo thiếu căn cứ.
+  Tạo lại bằng `scripts/generate-social-card.mjs` với Playwright đã có khi cần.
+
+## Kiểm tra khi thêm hoặc sửa trang công khai
+
+1. Xác định mục đích trang và nhu cầu tìm kiếm, tránh trùng nội dung vô ích.
+2. Kiểm tra metadata, canonical, indexability, sitemap và internal links.
+3. Đánh giá schema dựa trên nội dung thật, không thêm mọi schema cho mọi trang.
+4. Build, chạy Worker local và `node scripts/check-seo.mjs` với Playwright có sẵn.
+   Script kiểm tra HTTP, HTML/DOM, liên kết, không-JS và ảnh 1440/768/390px.
+5. Xem screenshot, thử CTA, bàn phím và các luồng hiện có, chạy các test liên quan.
+6. Phân biệt Lighthouse lab với dữ liệu người dùng thật và số liệu Search Console.
+   Ghi rõ môi trường, thời điểm và giới hạn đo, không hứa kết quả xếp hạng.
+7. Vitest chỉ khám phá test của project trong `tests/`, không chạy test từ các
+   công cụ/skill tải về `.local` hoặc `.agents`.
+
+## SECURE CODING RULES
+
+- Xác thực và phân quyền ở Worker. Mọi route quản lý link phải kiểm tra chủ sở
+  hữu hoặc quyền admin, kể cả đọc thống kê. Không tin ID, role, owner, thời hạn
+  hay trạng thái do frontend gửi ngoài danh sách trường được cho phép.
+- Giữ session token ngẫu nhiên, chỉ lưu hash trong D1. Cookie production phải
+  giữ `__Host-`, `Secure`, `HttpOnly`, `SameSite` và Path phù hợp. Khóa tài khoản
+  phải thu hồi phiên. Giữ xác minh chữ ký, issuer, audience, nonce, state và PKCE
+  của Google OAuth. Không bỏ kiểm tra để chạy được một fixture.
+- Validate tại ranh giới server. Giới hạn body theo byte thực nhận, không chỉ
+  Content-Length. Dùng prepared statements và bind giá trị. Tên bảng/cột động
+  phải lấy từ allowlist trong code, không lấy trực tiếp từ request.
+- Dùng chung `targetValue`, `canonicalHostname` và `blockTargetValue` khi sửa
+  đích hoặc danh sách chặn. Chuẩn hóa hostname trước so sánh. Chặn URL bỏ qua
+  fragment `#`, vẫn phân biệt scheme, path và query. Link hợp lệ vẫn giữ fragment
+  khi chuyển hướng. Giữ tương thích với block cũ và không quét toàn bảng mỗi lượt.
+- Không fetch URL đích do người dùng gửi. Nếu thêm preview/fetch về sau, phải
+  đánh giá SSRF, DNS/IP, redirect và giới hạn response trước khi triển khai.
+- API đọc và ghi có ngân sách tốc độ riêng, kiểm tra trước truy vấn D1. Giới hạn
+  theo binding Cloudflare không thay thế quota nguyên tử trong D1 hoặc WAF.
+  Không tự áp giới hạn API lên đường chuyển hướng công khai và static assets.
+- Giữ Origin + CSRF cho thao tác cookie-auth, không mở CORS tùy tiện. Backup
+  nội bộ dùng bearer secret riêng, kiểm tra trước đọc/ghi. Không xuất session
+  hoặc network hash vào backup. Không đưa token vào URL.
+- Không hardcode hoặc log secret, cookie, token, nội dung backup hay lỗi SQL.
+  Trả lỗi chung khi có lỗi nội bộ. Đầu vào người dùng phải được escape đúng ngữ
+  cảnh HTML hoặc gán bằng textContent/value. Không thêm eval, event handler từ
+  chuỗi, script URL động hoặc unsafe-inline/unsafe-eval cho script.
+- Khi sửa auth, quyền, API, query, session, upload, export hoặc tích hợp ngoài:
+  truy vết input tới sink, xét quyền thực tế và thêm regression test có ý nghĩa.
+  Phân biệt lỗ hổng đã tái hiện, rủi ro chưa xác minh và hardening.
+
+## SECURITY VERIFICATION AND DELIVERY
+
+- Chỉ tái hiện bằng dữ liệu giả trên local/staging được cho phép. Không kiểm thử
+  khai thác, fuzz/stress production, đọc dữ liệu thật hay tự rotate credentials.
+- Test Worker phải override mọi credential provider/backup bằng fixture rỗng
+  hoặc giả. Mock Google/Turnstile, không dùng secret trong `.dev.vars` để gọi ngoài.
+- Chạy `npm run test:security`, `npm test`, `npm run build`, `npm run security:audit`
+  và `npm run security:secrets -- <Gitleaks đã xác minh>`. Gitleaks phải redact
+  100%, kiểm tra Git history, file trong phạm vi Git và frontend build.
+- Khi sửa UI có dữ liệu người dùng hoặc CSP, chạy `scripts/test-security-ui.mjs`
+  và `scripts/test-csp.mjs` với Playwright hiện có. Test UI chỉ cho localhost,
+  dùng dữ liệu giả, kiểm tra 1440/768/390px và xem screenshot.
+- Giữ audit dependency và secret scan trong job `verify` trước deploy. Ghim
+  Actions bằng SHA đã kiểm tra từ repository gốc, công cụ tải về bằng version
+  và SHA-256. Không tăng permissions/secret scope để chạy scanner.
+- Không sửa Git history hoặc thêm allowlist rộng để làm scanner hết cảnh báo.
+  Xác minh false positive và che giá trị nhạy cảm khi ghi nhận phát hiện.
+- Giữ nguyên các thay đổi chưa commit. Bản vá chưa có trên production cho tới
+  khi người dùng cho phép push/deploy. Không đồng nhất test local với bảo đảm
+  an toàn tuyệt đối hoặc xác minh cấu hình production.
