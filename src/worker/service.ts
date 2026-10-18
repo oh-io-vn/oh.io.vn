@@ -1,6 +1,7 @@
 import type { Env, Policy, Link } from "./types";
 import { monitor } from "./monitor";
 import { blockTargetValue, canonicalHostname } from "../shared/rules";
+import { purgeTrash } from "./trash";
 export const policy = (env: Env) =>
   env.DB.prepare("SELECT * FROM policy WHERE id=1").first<Policy>();
 export const expiryHeld = (p: Policy, now: number) =>
@@ -53,9 +54,11 @@ export async function blocked(env: Env, url: URL): Promise<boolean> {
 }
 export async function tombstone(env: Env, slug: string, status = "deleted") {
   await env.DB.batch([
-    env.DB.prepare("DELETE FROM analytics WHERE slug=?").bind(slug),
     env.DB.prepare(
-      "UPDATE links SET status=?,owner_id=NULL,target=NULL,host=NULL,label=NULL,creator_key=NULL WHERE slug=?",
+      "DELETE FROM analytics WHERE slug IN (SELECT slug FROM links WHERE slug=? AND deleted_at IS NULL)",
+    ).bind(slug),
+    env.DB.prepare(
+      "UPDATE links SET status=?,owner_id=NULL,target=NULL,host=NULL,label=NULL,creator_key=NULL WHERE slug=? AND deleted_at IS NULL",
     ).bind(status, slug),
   ]);
 }
@@ -67,6 +70,7 @@ export async function maintenance(env: Env) {
   const now = Date.now();
   const p = await policy(env);
   if (!p) return;
+  await purgeTrash(env, now);
   await monitor(env).catch(() => console.error("metrics_refresh_failed"));
   // A stale heartbeat latches the hold. Recovery needs an explicit admin decision.
   const incident = await incidentHold(env);

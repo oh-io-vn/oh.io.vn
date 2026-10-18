@@ -37,6 +37,7 @@ import {
 import type { App, Env, Link } from "./types";
 import { editLink, linkStats } from "./link-management";
 import { adminDirectory } from "./admin-directory";
+import { trashAction } from "./trash";
 const app = new Hono<App>();
 app.use("*", async (c, next) => {
   await next();
@@ -240,7 +241,7 @@ app.get("/api/links", async (c) => {
     cursorTime = Number(cursor[0]) || Date.now() + 1,
     cursorSlug = cursor[1] ?? "";
   const rows = await c.env.DB.prepare(
-    "SELECT * FROM links WHERE owner_id=? AND (created_at<? OR (created_at=? AND slug>?)) AND (?='' OR instr(slug,?)>0 OR instr(COALESCE(label,''),?)>0 OR instr(COALESCE(target,''),?)>0) ORDER BY created_at DESC,slug LIMIT 51",
+    "SELECT * FROM links WHERE owner_id=? AND deleted_at IS NULL AND (created_at<? OR (created_at=? AND slug>?)) AND (?='' OR instr(slug,?)>0 OR instr(COALESCE(label,''),?)>0 OR instr(COALESCE(target,''),?)>0) ORDER BY created_at DESC,slug LIMIT 51",
   )
     .bind(
       user.id,
@@ -266,7 +267,7 @@ app.use("/api/links/:slug/*", async (c, next) => {
   const u = c.get("user");
   if (!u || u.blocked) return c.json({ error: "Vui lòng đăng nhập." }, 401);
   const l = await c.env.DB.prepare(
-    "SELECT * FROM links WHERE slug=? AND owner_id=?",
+    "SELECT * FROM links WHERE slug=? AND owner_id=? AND deleted_at IS NULL",
   )
     .bind(c.req.param("slug"), u.id)
     .first<Link>();
@@ -301,12 +302,12 @@ app.get("/api/admin/search", async (c) => {
   const q = (c.req.query("q") ?? "").slice(0, 254);
   if (!q) return c.json({ links: [], users: [] });
   const links = await c.env.DB.prepare(
-    "SELECT * FROM links WHERE slug=? OR owner_id IN (SELECT id FROM users WHERE email=?) LIMIT 100",
+    "SELECT * FROM links WHERE deleted_at IS NULL AND (slug=? OR owner_id IN (SELECT id FROM users WHERE email=? AND deleted_at IS NULL)) LIMIT 100",
   )
     .bind(q, q)
     .all();
   const users = await c.env.DB.prepare(
-    "SELECT id,email,name,blocked FROM users WHERE email=? OR id=? LIMIT 1",
+    "SELECT id,email,name,blocked FROM users WHERE deleted_at IS NULL AND (email=? OR id=?) LIMIT 1",
   )
     .bind(q, q)
     .all();
@@ -326,6 +327,12 @@ app.post("/api/admin/action", async (c) => {
     now = Date.now();
   const action = String(b.action),
     subject = String(b.subject ?? "").slice(0, 4096);
+  if (
+    ["delete_link", "restore_link", "delete_user", "restore_user"].includes(
+      action,
+    )
+  )
+    return trashAction(c, action, subject);
   if (action === "block_link")
     await c.env.DB.prepare(
       "UPDATE links SET status='blocked' WHERE slug=? AND status='active'",
@@ -334,10 +341,9 @@ app.post("/api/admin/action", async (c) => {
       .run();
   else if (action === "block_user")
     await c.env.DB.batch([
-      c.env.DB.prepare("UPDATE users SET blocked=? WHERE id=?").bind(
-        b.blocked === false ? 0 : 1,
-        subject,
-      ),
+      c.env.DB.prepare(
+        "UPDATE users SET blocked=? WHERE id=? AND deleted_at IS NULL",
+      ).bind(b.blocked === false ? 0 : 1, subject),
       c.env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(subject),
     ]);
   else if (action === "block_user_links")

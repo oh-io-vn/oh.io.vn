@@ -1626,6 +1626,13 @@ p,
 .directory-heading {
   margin-bottom: var(--space-6);
 }
+.directory-heading > .actions {
+  display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+}
 .directory-heading h2,
 .directory-heading p,
 .directory-owner p {

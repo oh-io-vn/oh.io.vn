@@ -6,7 +6,7 @@ const data = validateBackup(
   JSON.parse(await readFile(process.argv[2], "utf8")),
 );
 const allowed = {
-  users: ["id", "email", "name", "blocked", "created_at"],
+  users: ["id", "email", "name", "blocked", "created_at", "deleted_at"],
   links: [
     "slug",
     "owner_id",
@@ -20,6 +20,9 @@ const allowed = {
     "months",
     "status",
     "creator_key",
+    "deleted_at",
+    "deletion_previous_status",
+    "deletion_user_id",
   ],
   blocked_targets: ["kind", "value"],
   policy: [
@@ -55,17 +58,12 @@ for (const table of ["users", "links", "blocked_targets", "policy"])
 sql +=
   "UPDATE policy SET expiry_hold=1,create_enabled=0,heartbeat=0,monitoring=NULL WHERE id=1;\nDELETE FROM sessions;\nDELETE FROM creation_events;\n";
 const migration = await readFile(
-  new URL("../migrations/0001_initial.sql", import.meta.url),
+  new URL("../migrations/0003_rename_link_codes.sql", import.meta.url),
   "utf8",
 );
 sql += migration.slice(
   migration.indexOf("CREATE TRIGGER enforce_creation"),
-  migration.indexOf("CREATE TABLE analytics"),
+  migration.indexOf("CREATE TRIGGER reserve_renamed_slug"),
 );
-const operating = await readFile(
-  new URL("../migrations/0002_operating_guards.sql", import.meta.url),
-  "utf8",
-);
-sql += operating.slice(operating.indexOf("CREATE TRIGGER operating_guards"));
 await writeFile(process.argv[3], sql);
 console.log("Restore SQL prepared for an isolated empty database.");

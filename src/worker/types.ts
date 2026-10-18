@@ -42,6 +42,9 @@ export interface Policy {
   last_backup_at: number;
 }
 export interface Link {
+  deleted_at?: number | null;
+  deletion_previous_status?: string | null;
+  deletion_user_id?: string | null;
   slug: string;
   owner_id: string | null;
   target: string | null;

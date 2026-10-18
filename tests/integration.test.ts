@@ -791,7 +791,7 @@ describe("đổi mã link", () => {
     ).toBe(401);
     expect((await edit("guest", "changed")).status).toBe(404);
     await env.DB.prepare(
-      "INSERT INTO users VALUES('u2','two@example.com','Two',0,0)",
+      "INSERT INTO users(id,email,name,blocked,created_at) VALUES('u2','two@example.com','Two',0,0)",
     ).run();
     await insert("theirs", "u2");
     expect((await edit("theirs", "changed")).status).toBe(404);

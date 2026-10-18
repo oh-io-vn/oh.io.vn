@@ -101,7 +101,7 @@ auth.get("/callback", async (c) => {
       throw new Error("identity");
     const now = Date.now();
     await c.env.DB.prepare(
-      "INSERT INTO users(id,email,name,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name",
+      "INSERT INTO users(id,email,name,created_at) VALUES(?,?,?,?) ON CONFLICT(id) DO UPDATE SET email=excluded.email,name=excluded.name WHERE users.deleted_at IS NULL",
     )
       .bind(
         identity.sub,
@@ -110,10 +110,13 @@ auth.get("/callback", async (c) => {
         now,
       )
       .run();
-    const user = await c.env.DB.prepare("SELECT blocked FROM users WHERE id=?")
+    const user = await c.env.DB.prepare(
+      "SELECT blocked,deleted_at FROM users WHERE id=?",
+    )
       .bind(identity.sub)
-      .first<{ blocked: number }>();
-    if (user?.blocked) return c.redirect("/?error=account");
+      .first<{ blocked: number; deleted_at: number | null }>();
+    if (user?.blocked || user?.deleted_at != null)
+      return c.redirect("/?error=account");
     if (
       c.env.ADMIN_BOOTSTRAP_EMAIL &&
       identity.email === c.env.ADMIN_BOOTSTRAP_EMAIL

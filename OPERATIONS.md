@@ -207,7 +207,15 @@ Khóa giải mã nằm trong secret của kho private và một bản local bị
 
 Tiếp nhận qua hi@oh.io.vn. Xác minh link/bằng chứng trước khi khóa; khóa đăng nhập tài khoản và khóa các link của tài khoản là hai nút riêng. Danh sách chặn hostname bao gồm tên miền con. Chỉ chặn URL chính xác khi thực sự cần phạm vi hẹp.
 
-Yêu cầu xóa tài khoản: xác minh qua email Google đã dùng, vô hiệu hóa link, xóa analytics/phiên và dữ liệu tài khoản liên quan; giữ dấu slug tối thiểu. Ghi sổ yêu cầu riêng tư trong 7 ngày hoặc lâu hơn khi cần đối chiếu với backup còn hiệu lực, tránh khôi phục lại dữ liệu đã xóa. Mục tiêu phản hồi trong 7 ngày, có thể cần thêm thời gian để xác minh.
+Yêu cầu xóa tài khoản: xác minh qua email Google đã dùng rồi dùng **Xóa tài khoản** trong danh sách quản trị. Tài khoản mất các phiên đăng nhập ngay và không thể đăng nhập lại trong thời gian ở thùng rác. Các link còn lưu thuộc tài khoản được đưa vào thùng rác cùng giao dịch. Không cho xóa tài khoản quản trị.
+
+**Thùng rác 30 ngày:** danh sách Link và Tài khoản đều có nút Thùng rác, bộ lọc riêng, hạn hoàn tác theo giờ Việt Nam và nút Hoàn tác. Xóa riêng một link không ảnh hưởng tài khoản. Hoàn tác tài khoản chỉ khôi phục link bị xóa cùng lần đó, giữ trạng thái khóa và thời hạn cũ. Link đã xóa riêng giữ deadline riêng, cần khôi phục tài khoản trước nếu chủ link cũng đang ở thùng rác. Không tái tạo phiên đăng nhập hay gia hạn link khi hoàn tác. Thống kê vẫn theo cửa sổ lưu 30 ngày hiện có.
+
+Hạn hoàn tác là đúng 30 × 24 giờ từ thời điểm xóa do server ghi nhận. Gửi lại yêu cầu xóa không kéo dài hạn. Sau hạn này, API từ chối hoàn tác ngay cả khi cron chưa dọn xong. Cron mỗi 10 phút dọn tối đa 50 link và 50 tài khoản đủ điều kiện mỗi lần. Tài khoản nhiều link có thể cần vài lần chạy, chỉ xóa bản ghi tài khoản sau khi không còn link gắn với nó. Địa chỉ đích, chủ sở hữu, tên và thống kê của link bị dọn, nhưng mã link còn là tombstone và không được cấp lại. Sau khi tài khoản đã được dọn, lần đăng nhập Google tiếp theo tạo tài khoản mới, không nhận lại link cũ. Xóa là thao tác xóa dữ liệu, không thay thế khóa tài khoản để xử lý lạm dụng.
+
+Chức năng này cần `migrations/0005_admin_trash.sql` **trước khi deploy Worker mới**. Migration chỉ thêm cột, index và trigger, không đưa dữ liệu hiện có vào thùng rác. Chỉ áp D1 production sau khi được phép, rồi push theo luồng CI hiện có. Kiểm tra local bằng `npm test` và `node scripts/test-trash-ui.mjs` với Playwright/Chrome như hướng dẫn trong `AGENTS.md`. Bản sao lưu giữ metadata thùng rác, script restore cần database tách biệt đã áp đủ migration. Link đã xóa vĩnh viễn, mã cũ sau đổi mã và dữ liệu đã dọn không thể hoàn tác. Luồng xóa link của chủ link tại dashboard vẫn là xóa vĩnh viễn.
+
+Ghi sổ yêu cầu riêng tư trong 7 ngày hoặc lâu hơn khi cần đối chiếu với backup còn hiệu lực, tránh khôi phục lại dữ liệu đã xóa. Mục tiêu phản hồi trong 7 ngày, có thể cần thêm thời gian để xác minh.
 
 ## Rollback
 

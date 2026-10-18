@@ -124,6 +124,7 @@ describe("OAuth boundaries with local signed tokens", () => {
     "unverified-email",
     "signature",
     "blocked",
+    "deleted",
   ])(
     "validates %s identity and only issues a session for an accepted identity",
     async (variant) => {
@@ -133,6 +134,12 @@ describe("OAuth boundaries with local signed tokens", () => {
           "INSERT INTO users(id,email,name,blocked,created_at) VALUES('synthetic-google-user','test@example.com','Local user',1,?)",
         )
           .bind(Date.now())
+          .run();
+      if (variant === "deleted")
+        await env.DB.prepare(
+          "INSERT INTO users(id,email,name,created_at,deleted_at) VALUES('synthetic-google-user','test@example.com','Original name',?,?)",
+        )
+          .bind(Date.now(), Date.now())
           .run();
       const signer =
         variant === "signature"
@@ -196,7 +203,9 @@ describe("OAuth boundaries with local signed tokens", () => {
           expect(response.headers.get("Set-Cookie")).toContain(attribute);
       } else {
         expect(response.headers.get("Location")).toBe(
-          variant === "blocked" ? "/?error=account" : "/?error=login",
+          ["blocked", "deleted"].includes(variant)
+            ? "/?error=account"
+            : "/?error=login",
         );
         expect(
           await env.DB.prepare("SELECT hash FROM sessions").first(),

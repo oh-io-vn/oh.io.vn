@@ -75,12 +75,17 @@ const linkStatus = (status: string) =>
     blocked: "Đã khóa",
     expired: "Hết hạn",
     deleted: "Đã xóa",
+    trashed: "Trong thùng rác",
   })[status] ?? status;
 const blockKind = (kind: string) =>
   ({ host: "Tên miền", url: "Địa chỉ web" })[kind] ?? kind;
 const adminAction = (action: string) =>
   ({
     edit_link: "Sửa link",
+    delete_link: "Đưa link vào thùng rác",
+    restore_link: "Hoàn tác xóa link",
+    delete_user: "Đưa tài khoản vào thùng rác",
+    restore_user: "Hoàn tác xóa tài khoản",
     policy: "Đổi cấu hình",
     block_link: "Khóa link",
     block_user: "Đổi trạng thái tài khoản",
@@ -889,6 +894,10 @@ function renderStats(data: Stats) {
     `<p class="small">${data.tracked === false ? "Link khách không được ghi thống kê. Dữ liệu của link đã xóa hoặc hết hạn có thể đã được dọn. " : ""}Dữ liệu từ ngày ${calendarDate(data.since)}.</p><div class="stats-total">${total.toLocaleString("vi-VN")} <span class="small">lượt được ghi nhận</span></div>${data.gaps.length || !data.enabled ? `<div class="notice icon-notice">${icon("info")}<div>Thống kê có thời gian bị thiếu. Tổng chỉ gồm lượt đã ghi nhận.${data.gaps.map((g) => `<div class="small">${date(g.started_at)} đến ${g.ended_at ? date(g.ended_at) : "đang tiếp diễn"}: ${esc(g.reason)}</div>`).join("")}</div></div>` : ""}${total ? `${chart}<div class="stats-grid"><div><h3 class="small">Nguồn truy cập</h3>${render(groups("source"))}</div><div><h3 class="small">Thiết bị</h3>${render(groups("device"))}</div></div><details class="optional"><summary>Xem số liệu từng ngày</summary>${render(days.map(([day, count]) => [calendarDate(day), count]))}</details>` : '<p class="small">Chưa có lượt truy cập.</p>'}<details class="optional"><summary>Cách tính lượt truy cập</summary><p class="small">Số lượt có thể gồm bot và lượt xem trước. Nguồn thiếu thông tin được ghi là “Không xác định”. Thời gian theo giờ Việt Nam.</p></details>`;
 }
 type AdminLink = LinkData & {
+  deleted_at?: number | null;
+  restore_until?: number | null;
+  can_restore?: boolean;
+  owner_deleted_at?: number | null;
   owner_id: string | null;
   owner_email: string | null;
   owner_name: string | null;
@@ -898,6 +907,10 @@ type AdminLink = LinkData & {
   effective_status: string;
 };
 type AdminUser = {
+  deleted_at?: number | null;
+  restore_until?: number | null;
+  can_restore?: boolean;
+  can_delete?: boolean;
   id: string;
   name: string;
   email: string;
@@ -908,18 +921,34 @@ type AdminUser = {
 const ownerLabel = (l: AdminLink) =>
   l.owner_email ||
   (l.target ? "Khách (chưa đăng nhập)" : "Thông tin người tạo đã được xóa");
-const ownerUrl = (id: string) =>
-  `/admin/?view=links&owner=${encodeURIComponent(id)}`;
+const ownerUrl = (id: string, trashed = false) =>
+  `/admin/?view=links&owner=${encodeURIComponent(id)}${trashed ? "&status=trashed" : ""}`;
+const trashDeadline = (until?: number | null) =>
+  until && until > Date.now()
+    ? `Có thể hoàn tác trước ${date(until)}.`
+    : "Đã hết hạn hoàn tác, đang chờ dọn dữ liệu.";
+function trashLinkAction(l: AdminLink) {
+  if (l.deleted_at != null)
+    return l.can_restore
+      ? `<button class="action-button" data-directory-action="restore-link" data-slug="${esc(l.slug)}">${icon("restore")}<span>Hoàn tác</span></button>`
+      : l.owner_deleted_at != null
+        ? `<a class="action-button" href="/admin/?view=users&state=trashed">Khôi phục tài khoản trước</a>`
+        : "";
+  return l.status !== "deleted"
+    ? `<button class="action-button danger" data-directory-action="delete-link" data-slug="${esc(l.slug)}">${icon("delete")}<span>Xóa link</span></button>`
+    : "";
+}
 const expiryLabel = (l: AdminLink) =>
   l.effective_expires_at === null
     ? "Đang tạm dừng hết hạn do không hoạt động"
     : date(l.effective_expires_at);
 function directoryLink(l: AdminLink) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${l.effective_status === "blocked" ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button>${active ? `<button class="action-button danger" data-directory-action="block-link" data-slug="${esc(l.slug)}">${icon("lock")}<span>Khóa link</span></button>` : ""}</div></article>`;
+  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id, l.owner_deleted_at != null)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${["blocked", "trashed"].includes(l.effective_status) ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.deleted_at != null ? trashDeadline(l.restore_until) : l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button>${active ? `<button class="action-button danger" data-directory-action="block-link" data-slug="${esc(l.slug)}">${icon("lock")}<span>Khóa link</span></button>` : ""}${trashLinkAction(l)}</div></article>`;
 }
 function directoryUser(u: AdminUser) {
-  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked ? " danger" : ""}">${u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p></div><div class="actions"><a class="action-button" href="${ownerUrl(u.id)}">${icon("list")}<span>Xem link</span></a><button class="action-button danger" data-directory-action="toggle-user" data-user-id="${esc(u.id)}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button></div></article>`;
+  const trashed = u.deleted_at != null;
+  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked || trashed ? " danger" : ""}">${trashed ? "Trong thùng rác" : u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p>${trashed ? `<p class="small">${trashDeadline(u.restore_until)}</p>` : ""}</div><div class="actions"><a class="action-button" href="${ownerUrl(u.id, trashed)}">${icon("list")}<span>Xem link</span></a>${trashed ? (u.can_restore ? `<button class="action-button" data-directory-action="restore-user" data-user-id="${esc(u.id)}">${icon("restore")}<span>Hoàn tác</span></button>` : "") : `<button class="action-button danger" data-directory-action="toggle-user" data-user-id="${esc(u.id)}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button>${u.can_delete !== false ? `<button class="action-button danger" data-directory-action="delete-user" data-user-id="${esc(u.id)}">${icon("delete")}<span>Xóa tài khoản</span></button>` : ""}`}</div></article>`;
 }
 function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
   let actionPending = false;
@@ -946,10 +975,15 @@ function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
     button.setAttribute("aria-busy", "true");
     message(feedback, "Đang lưu thay đổi…");
     try {
-      await api("/api/admin/action", {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
+      const saved = await api<{ restore_until?: number | null }>(
+        "/api/admin/action",
+        {
+          method: "POST",
+          body: JSON.stringify(body),
+        },
+      );
+      if (saved.restore_until)
+        success += ` ${trashDeadline(saved.restore_until)}`;
       try {
         if ((await refresh()) === false) throw new Error("Refresh failed");
         message(feedback, success);
@@ -991,14 +1025,22 @@ function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
     $("#admin-confirm-title").textContent = title;
     $("#admin-confirm-subject").textContent = subject;
     $("#admin-confirm-description").textContent = description;
+    confirmButton.classList.toggle(
+      "danger-button",
+      !String(body.action).startsWith("restore_"),
+    );
     setControlLabel(
       confirmButton,
       title.replace(/\?$/, ""),
-      body.action === "remove_block" || body.blocked === false
-        ? "unlock"
-        : body.action === "block_user" || body.action === "block_user_links"
-          ? "lock"
-          : "block",
+      String(body.action).startsWith("restore_")
+        ? "restore"
+        : String(body.action).startsWith("delete_")
+          ? "delete"
+          : body.action === "remove_block" || body.blocked === false
+            ? "unlock"
+            : body.action === "block_user" || body.action === "block_user_links"
+              ? "lock"
+              : "block",
     );
     message("#admin-confirm-message", "");
     confirmButton.onclick = async () => {
@@ -1046,12 +1088,14 @@ async function adminDirectory(view: "links" | "users") {
           ["active", "Đang hoạt động"],
           ["expired", "Hết hạn"],
           ["blocked", "Đã khóa"],
+          ["trashed", "Thùng rác (30 ngày)"],
           ["deleted", "Đã xóa / mã cũ"],
         ]
       : [
           ["all", "Tất cả tài khoản"],
           ["active", "Được phép đăng nhập"],
           ["blocked", "Đã khóa"],
+          ["trashed", "Thùng rác (30 ngày)"],
         ];
   state.innerHTML = options
     .map(([value, label]) => `<option value="${value}">${label}</option>`)
@@ -1074,6 +1118,8 @@ async function adminDirectory(view: "links" | "users") {
   let current = parameters.get("cursor") || "",
     nextCursor: string | null = null;
   const clearFilter = $<HTMLAnchorElement>("#directory-clear");
+  $<HTMLAnchorElement>("#directory-trash").href =
+    `/admin/?view=${view}&${view === "links" ? "status" : "state"}=trashed${owner ? `&owner=${encodeURIComponent(owner)}` : ""}`;
   clearFilter.href = `/admin/?view=${view}`;
   clearFilter.hidden =
     !query.value && state.value === "all" && !owner && !current;
@@ -1120,22 +1166,38 @@ async function adminDirectory(view: "links" | "users") {
       expiryHold = !!data.expiryHeld;
       pageLinks = data.links || [];
       pageUsers = data.users || [];
+      $("#directory-note").textContent =
+        filter === "trashed"
+          ? "Có thể hoàn tác trong 30 ngày kể từ lúc xóa. Sau hạn này, hệ thống sẽ dọn dữ liệu. Mã link vẫn được giữ lại và không cấp lại. Thời gian hiển thị theo giờ Việt Nam."
+          : view === "links"
+            ? "Thời gian theo giờ Việt Nam. Link trong thùng rác chỉ khôi phục được trong 30 ngày. Link đã xóa vĩnh viễn hoặc mã cũ không thể khôi phục."
+            : "Tổng tài khoản không bao gồm thùng rác. Số link gồm các link còn gắn với tài khoản, kể cả link đang ở thùng rác.";
       const count = view === "links" ? pageLinks.length : data.users.length;
+      $("#directory-title").textContent =
+        filter === "trashed"
+          ? view === "links"
+            ? "Thùng rác link"
+            : "Thùng rác tài khoản"
+          : view === "links"
+            ? "Danh sách link"
+            : "Danh sách tài khoản";
       results.innerHTML = count
         ? view === "links"
           ? pageLinks.map(directoryLink).join("")
           : data.users.map(directoryUser).join("")
         : `<div class="empty">${icon("search-empty")}<h3>${view === "links" ? "Không có link trong danh sách này" : "Không có tài khoản phù hợp"}</h3><p>Thử đổi từ khóa hoặc chọn trạng thái khác.</p></div>`;
       $("#directory-summary").textContent =
-        view === "links"
-          ? `${Number(data.total).toLocaleString("vi-VN")} link phù hợp${owner ? " thuộc tài khoản này" : ""}. Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản.`
-          : `Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản. ${Number(data.total).toLocaleString("vi-VN")} tài khoản phù hợp bộ lọc.`;
+        filter === "trashed"
+          ? `${Number(data.total).toLocaleString("vi-VN")} ${view === "links" ? "link" : "tài khoản"} trong thùng rác phù hợp bộ lọc.`
+          : view === "links"
+            ? `${Number(data.total).toLocaleString("vi-VN")} link phù hợp${owner ? " thuộc tài khoản này" : ""}. Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản.`
+            : `Hệ thống có ${Number(data.totalUsers).toLocaleString("vi-VN")} tài khoản. ${Number(data.total).toLocaleString("vi-VN")} tài khoản phù hợp bộ lọc.`;
       $("#directory-page").textContent =
         `Đang hiển thị ${count} / ${Number(data.total).toLocaleString("vi-VN")} ${view === "links" ? "link" : "tài khoản"}. Mỗi trang tối đa 25.`;
       if (data.owner) {
         $("#directory-owner").hidden = false;
         $("#directory-owner").innerHTML =
-          `<div><strong>${esc(data.owner.name)}</strong><p translate="no">${esc(data.owner.email)}</p><span class="small">${data.owner.blocked ? "Tài khoản đã khóa" : "Được phép đăng nhập"}</span></div><a class="secondary" href="/admin/?view=users">Về danh sách tài khoản</a>`;
+          `<div><strong>${esc(data.owner.name)}</strong><p translate="no">${esc(data.owner.email)}</p><span class="small">${data.owner.deleted_at != null ? "Tài khoản đang ở thùng rác. Khôi phục tài khoản trước khi khôi phục link riêng." : data.owner.blocked ? "Tài khoản đã khóa" : "Được phép đăng nhập"}</span></div><a class="secondary" href="/admin/?view=users${data.owner.deleted_at != null ? "&state=trashed" : ""}">Về danh sách tài khoản</a>`;
       }
       const clear = $<HTMLAnchorElement>("#directory-clear");
       clear.hidden = !q && filter === "all" && !owner && !cursor;
@@ -1196,6 +1258,25 @@ async function adminDirectory(view: "links" | "users") {
       "[data-directory-action]",
     );
     if (!button) return;
+    const operation = button.dataset.directoryAction || "";
+    if (["delete-user", "restore-user"].includes(operation)) {
+      const user = pageUsers.find((u) => u.id === button.dataset.userId);
+      if (!user) return;
+      const restore = operation === "restore-user";
+      confirmAction(
+        { action: restore ? "restore_user" : "delete_user", subject: user.id },
+        restore ? "Hoàn tác xóa tài khoản?" : "Xóa tài khoản?",
+        user.email + (user.name ? " - " + user.name : ""),
+        restore
+          ? "Khôi phục tài khoản và các link bị xóa cùng lần này. Link đã xóa riêng vẫn ở thùng rác. Trạng thái khóa và thời hạn link được giữ nguyên. Người dùng cần đăng nhập lại."
+          : "Tài khoản sẽ bị đăng xuất và không thể đăng nhập. Các link thuộc tài khoản sẽ ngừng hoạt động. Admin có 30 ngày để hoàn tác. Sau đó, dữ liệu sẽ bị dọn và không thể khôi phục. Link đã xóa riêng giữ hạn hoàn tác cũ.",
+        "#directory-message",
+        restore
+          ? "Đã hoàn tác xóa tài khoản. Trạng thái khóa và thời hạn link được giữ nguyên."
+          : "Đã chuyển tài khoản và các link liên quan vào thùng rác.",
+      );
+      return;
+    }
     if (button.dataset.directoryAction === "toggle-user") {
       const user = pageUsers.find((u) => u.id === button.dataset.userId);
       if (!user) return;
@@ -1218,6 +1299,25 @@ async function adminDirectory(view: "links" | "users") {
     }
     const link = pageLinks.find((l) => l.slug === button.dataset.slug);
     if (!link) return;
+    if (["delete-link", "restore-link"].includes(operation)) {
+      const restore = operation === "restore-link";
+      confirmAction(
+        {
+          action: restore ? "restore_link" : "delete_link",
+          subject: link.slug,
+        },
+        restore ? "Hoàn tác xóa link?" : "Xóa link?",
+        "oh.io.vn/" + link.slug + (link.label ? " - " + link.label : ""),
+        restore
+          ? "Khôi phục thông tin và trạng thái trước khi xóa. Link từng bị khóa vẫn bị khóa. Thời hạn không được gia hạn, nên link có thể đã hết hạn."
+          : "Link sẽ ngừng hoạt động ngay. Admin có 30 ngày để hoàn tác trong Thùng rác. Sau đó, thông tin link và thống kê sẽ bị dọn. Mã link không được cấp lại.",
+        "#directory-message",
+        restore
+          ? "Đã hoàn tác xóa link. Trạng thái khóa và thời hạn được giữ nguyên."
+          : "Đã chuyển link vào thùng rác.",
+      );
+      return;
+    }
     if (button.dataset.directoryAction === "block-link") {
       confirmAction(
         { action: "block_link", subject: link.slug },
@@ -1247,7 +1347,7 @@ async function adminDirectory(view: "links" | "users") {
       const field = (label: string, value: string) =>
         `<div><dt>${label}</dt><dd>${value}</dd></div>`;
       $("#link-detail-content").innerHTML =
-        `<p class="dialog-context" translate="no">oh.io.vn/${esc(l.slug)}</p><dl class="link-detail-fields">${field("Tên ghi nhớ", esc(l.label || "Chưa đặt tên"))}${field("Người tạo", l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(l.owner_name)} - ${esc(l.owner_email)}</a>` : esc(ownerLabel(l)))}${field("Địa chỉ đích", esc(l.target || "Đã xóa thông tin"))}${field("Trạng thái", esc(linkStatus(l.effective_status)))}${field("Ngày tạo", date(l.created_at))}${field("Hết hạn", expiryLabel(l))}${field("Hạn do không có lượt mở", date(l.idle_expires_at))}${field("Hạn cố định", l.fixed_expires_at ? date(l.fixed_expires_at) : "Chưa đặt")}${field("Mốc hoạt động gần nhất", date(l.last_access_at))}</dl><p class="small">Mốc hoạt động là lúc tạo link hoặc lượt mở hợp lệ gần nhất. ${data.expiryHeld ? expiryHoldNotice : "Link hết hạn khi đến một trong hai hạn trên, tùy hạn nào đến trước."}</p><div class="dialog-actions">${canEditLink(l, data.expiryHeld) ? `<button class="secondary" id="detail-edit">${icon("edit")}<span>Sửa link</span></button>` : ""}<button class="secondary" id="detail-stats">${icon("stats")}<span>Thống kê</span></button></div>`;
+        `<p class="dialog-context" translate="no">oh.io.vn/${esc(l.slug)}</p><dl class="link-detail-fields">${field("Tên ghi nhớ", esc(l.label || "Chưa đặt tên"))}${field("Người tạo", l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(l.owner_name)} - ${esc(l.owner_email)}</a>` : esc(ownerLabel(l)))}${field("Địa chỉ đích", esc(l.target || "Đã xóa thông tin"))}${field("Trạng thái", esc(linkStatus(l.effective_status)))}${l.deleted_at != null ? field("Đưa vào thùng rác", date(l.deleted_at)) + field("Hạn hoàn tác", trashDeadline(l.restore_until)) : ""}${field("Ngày tạo", date(l.created_at))}${field("Hết hạn", expiryLabel(l))}${field("Hạn do không có lượt mở", date(l.idle_expires_at))}${field("Hạn cố định", l.fixed_expires_at ? date(l.fixed_expires_at) : "Chưa đặt")}${field("Mốc hoạt động gần nhất", date(l.last_access_at))}</dl><p class="small">Mốc hoạt động là lúc tạo link hoặc lượt mở hợp lệ gần nhất. ${data.expiryHeld ? expiryHoldNotice : "Link hết hạn khi đến một trong hai hạn trên, tùy hạn nào đến trước."}</p><div class="dialog-actions">${canEditLink(l, data.expiryHeld) ? `<button class="secondary" id="detail-edit">${icon("edit")}<span>Sửa link</span></button>` : ""}<button class="secondary" id="detail-stats">${icon("stats")}<span>Thống kê</span></button></div>`;
       $("#detail-edit")?.addEventListener("click", () => {
         detailDialog.close();
         void openLinkDialog(l, "edit");

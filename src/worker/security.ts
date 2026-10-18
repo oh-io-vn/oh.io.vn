@@ -40,7 +40,7 @@ export async function currentUser(c: Context<App>): Promise<User | null> {
   const token = getCookie(c, sessionName(c.env));
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   return c.env.DB.prepare(
-    "SELECT u.id,u.email,u.name,u.blocked FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.hash=? AND s.expires_at>?",
+    "SELECT u.id,u.email,u.name,u.blocked FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.hash=? AND s.expires_at>? AND u.deleted_at IS NULL",
   )
     .bind(await hash(token), Date.now())
     .first<User>();

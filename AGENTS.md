@@ -142,6 +142,22 @@
 - Thử thêm `node scripts/test-admin-ui.mjs` khi sửa danh sách quản trị: phân trang,
   tìm kiếm, tài khoản không có link, lỗi/tải chậm, hộp chi tiết, sửa, thống kê,
   responsive và dữ liệu dài. Chỉ dùng API giả trên localhost.
+- Xóa do admin dùng thùng rác 30 ngày qua `/api/admin/action`. Migration `0005`
+  phải có trước khi deploy. Xóa link của chủ sở hữu vẫn theo luồng xóa vĩnh viễn.
+  Tombstone cũ không thể hoàn tác. Không cấp lại mã sau khi dọn thùng rác.
+- Xóa tài khoản phải thu hồi phiên, chặn OAuth/tạo link và đưa các link còn lưu
+  vào thùng rác trong cùng giao dịch. Không cho xóa tài khoản quản trị. Khôi phục
+  giữ trạng thái khóa, thời hạn và chỉ khôi phục link bị xóa cùng lần với tài khoản.
+  Link xóa riêng giữ deadline riêng. Không cấp lại session khi hoàn tác.
+- Worker quyết định hạn hoàn tác: trước `deleted_at + 30*86400000`, không kéo dài
+  hạn khi gửi lặp. Cron dọn theo lô và kiểm tra lại deadline trong từng giao dịch.
+  Không để thao tác của chủ link, cron hết hạn hoặc phiên cũ xóa dữ liệu thùng rác.
+  Thống kê vẫn theo cửa sổ lưu 30 ngày hiện có. Backup/restore phải giữ metadata
+  thùng rác. Không phục hồi nhầm tài khoản hoặc link đã xóa khi đọc bản sao lưu.
+- Thùng rác có bộ lọc riêng, nút Hoàn tác và hạn cụ thể theo giờ Việt Nam. Xóa
+  dùng màu đỏ và xác nhận nêu đối tượng, ảnh hưởng, hạn 30 ngày. Hoàn tác dùng
+  màu hành động thường. Kiểm tra quyền, CSRF, rollback, hết hạn, xóa riêng rồi xóa
+  tài khoản, phiên đăng nhập và không cấp lại mã trong `tests/admin-trash.test.ts`.
 
 1. Tuân thủ design system và quy tắc nội dung trên.
 2. Chạy app khi khả thi; xem giao diện render bằng browser trước và sau khi sửa.
