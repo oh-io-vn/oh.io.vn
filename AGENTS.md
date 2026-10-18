@@ -158,6 +158,13 @@
   dùng màu đỏ và xác nhận nêu đối tượng, ảnh hưởng, hạn 30 ngày. Hoàn tác dùng
   màu hành động thường. Kiểm tra quyền, CSRF, rollback, hết hạn, xóa riêng rồi xóa
   tài khoản, phiên đăng nhập và không cấp lại mã trong `tests/admin-trash.test.ts`.
+- Thùng rác cho phép admin Xóa vĩnh viễn ngay qua `purge_link` / `purge_user`,
+  không cần chờ 30 ngày. Chỉ nhận bản ghi vẫn ở thùng rác tại thời điểm giao dịch.
+  Xóa tài khoản dọn toàn bộ link còn gắn tài khoản, kể cả link xóa riêng, và thu
+  hồi phiên. Giữ mã link thành tombstone, hạn mức tạo và nhật ký quản trị. Không
+  cho xóa tài khoản admin. Dọn dữ liệu và ghi audit phải cùng giao dịch, rollback
+  toàn bộ khi lỗi. Nút màu đỏ, xác nhận nêu đúng đối tượng và không thể hoàn tác.
+  Thử cả dữ liệu vừa hoàn tác, yêu cầu lặp, lỗi audit và tài khoản nhiều link.
 
 1. Tuân thủ design system và quy tắc nội dung trên.
 2. Chạy app khi khả thi; xem giao diện render bằng browser trước và sau khi sửa.

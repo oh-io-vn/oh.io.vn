@@ -328,9 +328,14 @@ app.post("/api/admin/action", async (c) => {
   const action = String(b.action),
     subject = String(b.subject ?? "").slice(0, 4096);
   if (
-    ["delete_link", "restore_link", "delete_user", "restore_user"].includes(
-      action,
-    )
+    [
+      "delete_link",
+      "restore_link",
+      "purge_link",
+      "delete_user",
+      "restore_user",
+      "purge_user",
+    ].includes(action)
   )
     return trashAction(c, action, subject);
   if (action === "block_link")

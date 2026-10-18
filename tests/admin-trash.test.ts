@@ -258,8 +258,10 @@ describe("admin trash lifecycle", () => {
     for (const name of [
       "delete_link",
       "restore_link",
+      "purge_link",
       "delete_user",
       "restore_user",
+      "purge_user",
     ]) {
       expect(
         (
@@ -285,6 +287,7 @@ describe("admin trash lifecycle", () => {
       ).toBe(403);
     }
     expect((await action("delete_user", "admin")).status).toBe(409);
+    expect((await action("purge_user", "admin")).status).toBe(409);
     const users = ((await (await get("users")).json()) as any).users;
     expect(users.find((u: any) => u.id === "admin").can_delete).toBe(false);
     expect((await row()).status).toBe("active");
@@ -412,4 +415,192 @@ describe("admin trash lifecycle", () => {
       ).first())!.n,
     ).toBe(51);
   });
+  it.each(["owner", null])(
+    "permanently deletes fresh link trash for %s without releasing its code or quota",
+    async (owner) => {
+      await link("sample", owner);
+      await link("untouched", "other");
+      await env.DB.prepare("INSERT INTO analytics VALUES(?,?,?,?,?)")
+        .bind("sample", vietnamDay(now), "Zalo", "Điện thoại", 4)
+        .run();
+      await action("delete_link", "sample");
+      expect((await action("purge_link", "sample")).status).toBe(200);
+      expect(await row()).toMatchObject({
+        status: "deleted",
+        owner_id: null,
+        target: null,
+        host: null,
+        label: null,
+        creator_key: null,
+        deleted_at: null,
+        deletion_previous_status: null,
+        deletion_user_id: null,
+      });
+      expect((await row("untouched")).target).not.toBeNull();
+      expect(await account()).not.toBeNull();
+      expect(
+        await env.DB.prepare(
+          "SELECT * FROM analytics WHERE slug='sample'",
+        ).first(),
+      ).toBeNull();
+      expect(
+        (await env.DB.prepare(
+          "SELECT count(*) n FROM creation_events",
+        ).first())!.n,
+      ).toBe(2);
+      expect((await SELF.fetch("http://localhost/sample")).status).toBe(404);
+      expect((await action("restore_link", "sample")).status).toBe(409);
+      expect((await action("purge_link", "sample")).status).toBe(409);
+      await expect(link("sample", null)).rejects.toThrow(/UNIQUE/);
+      expect(
+        (
+          await env.DB.prepare(
+            "SELECT action FROM admin_audit ORDER BY id",
+          ).all()
+        ).results,
+      ).toEqual([{ action: "delete_link" }, { action: "purge_link" }]);
+    },
+  );
+  it("permanently deletes a fresh account with more than one cron batch, including separately trashed links", async () => {
+    for (let i = 0; i < 51; i++) await link(`immediate-${i}`);
+    await link("independent");
+    await action("delete_link", "independent");
+    await link("unrelated", "other");
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO analytics VALUES(?,?,?,?,?)").bind(
+        "independent",
+        vietnamDay(now),
+        "Zalo",
+        "Điện thoại",
+        3,
+      ),
+      env.DB.prepare("INSERT INTO analytics VALUES(?,?,?,?,?)").bind(
+        "immediate-0",
+        vietnamDay(now),
+        "Google",
+        "Máy tính",
+        1,
+      ),
+      env.DB.prepare("INSERT INTO analytics VALUES(?,?,?,?,?)").bind(
+        "unrelated",
+        vietnamDay(now),
+        "Google",
+        "Máy tính",
+        7,
+      ),
+    ]);
+    const cookie = (await headers("owner")).Cookie;
+    await action("delete_user", "owner");
+    const listed = ((await (await get("users?state=trashed")).json()) as any)
+      .users[0];
+    expect(listed).toMatchObject({
+      id: "owner",
+      link_count: 52,
+      can_purge: true,
+    });
+    expect((await action("purge_user", "owner")).status).toBe(200);
+    expect(await account()).toBeNull();
+    expect(
+      (await env.DB.prepare(
+        "SELECT count(*) n FROM links WHERE target IS NULL AND owner_id IS NULL AND deleted_at IS NULL AND status='deleted'",
+      ).first())!.n,
+    ).toBe(52);
+    expect(
+      (await env.DB.prepare("SELECT slug,clicks FROM analytics").all()).results,
+    ).toEqual([{ slug: "unrelated", clicks: 7 }]);
+    expect((await row("unrelated")).status).toBe("active");
+    expect(
+      await env.DB.prepare(
+        "SELECT * FROM sessions WHERE user_id='owner'",
+      ).first(),
+    ).toBeNull();
+    expect(
+      (
+        await SELF.fetch("http://localhost/api/links", {
+          headers: { Cookie: cookie },
+        })
+      ).status,
+    ).toBe(401);
+    expect((await action("restore_user", "owner")).status).toBe(409);
+    expect((await action("restore_link", "independent")).status).toBe(409);
+    expect((await action("purge_user", "owner")).status).toBe(409);
+    expect(
+      (await env.DB.prepare(
+        "SELECT count(*) n FROM admin_audit WHERE action='purge_user'",
+      ).first())!.n,
+    ).toBe(1);
+  });
+  it("allows purging empty accounts and overdue trash", async () => {
+    await action("delete_user", "owner");
+    expect((await action("purge_user", "owner")).status).toBe(200);
+    expect(await account()).toBeNull();
+    await link("overdue", null);
+    await action("delete_link", "overdue");
+    await env.DB.prepare("UPDATE links SET deleted_at=? WHERE slug='overdue'")
+      .bind(now - TRASH_RETENTION_MS - 1000)
+      .run();
+    expect((await action("purge_link", "overdue")).status).toBe(200);
+    expect((await row("overdue")).target).toBeNull();
+  });
+  it("does not resurrect a permanently deleted link when its account is restored", async () => {
+    await link("sample");
+    await link("retained");
+    await action("delete_user", "owner");
+    expect((await action("purge_link", "sample")).status).toBe(200);
+    expect((await action("restore_user", "owner")).status).toBe(200);
+    expect(await row()).toMatchObject({
+      target: null,
+      status: "deleted",
+      owner_id: null,
+    });
+    expect((await row("retained")).status).toBe("active");
+  });
+  it("refuses active or restored records, missing records and protected admins without touching data", async () => {
+    await link("sample");
+    for (const name of ["purge_link", "purge_user"]) {
+      expect(
+        (await action(name, name === "purge_user" ? "owner" : "sample")).status,
+      ).toBe(409);
+      expect((await action(name, "missing")).status).toBe(409);
+    }
+    await action("delete_user", "owner");
+    await action("restore_user", "owner");
+    expect((await action("purge_user", "owner")).status).toBe(409);
+    expect((await action("purge_link", "sample")).status).toBe(409);
+    expect((await row()).target).not.toBeNull();
+    expect((await account()).deleted_at).toBeNull();
+    expect((await action("purge_user", "admin")).status).toBe(409);
+    const users = ((await (await get("users")).json()) as any).users;
+    expect(users.find((u: any) => u.id === "admin").can_purge).toBe(false);
+  });
+  it.each(["purge_link", "purge_user"])(
+    "rolls back all data removal if %s cannot save its audit",
+    async (name) => {
+      await link("sample");
+      await env.DB.prepare("INSERT INTO analytics VALUES(?,?,?,?,?)")
+        .bind("sample", vietnamDay(now), "Google", "Máy tính", 5)
+        .run();
+      await action("delete_user", "owner");
+      const beforeLink = await row(),
+        beforeUser = await account();
+      await env.DB.prepare(
+        "CREATE TRIGGER fail_purge_audit BEFORE INSERT ON admin_audit BEGIN SELECT RAISE(ABORT,'test rollback'); END",
+      ).run();
+      try {
+        expect(
+          (await action(name, name === "purge_user" ? "owner" : "sample"))
+            .status,
+        ).toBe(503);
+        expect(await row()).toEqual(beforeLink);
+        expect(await account()).toEqual(beforeUser);
+        expect(
+          (await env.DB.prepare(
+            "SELECT clicks FROM analytics WHERE slug='sample'",
+          ).first())!.clicks,
+        ).toBe(5);
+      } finally {
+        await env.DB.prepare("DROP TRIGGER fail_purge_audit").run();
+      }
+    },
+  );
 });

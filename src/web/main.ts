@@ -84,8 +84,10 @@ const adminAction = (action: string) =>
     edit_link: "Sửa link",
     delete_link: "Đưa link vào thùng rác",
     restore_link: "Hoàn tác xóa link",
+    purge_link: "Xóa vĩnh viễn link",
     delete_user: "Đưa tài khoản vào thùng rác",
     restore_user: "Hoàn tác xóa tài khoản",
+    purge_user: "Xóa vĩnh viễn tài khoản",
     policy: "Đổi cấu hình",
     block_link: "Khóa link",
     block_user: "Đổi trạng thái tài khoản",
@@ -911,6 +913,7 @@ type AdminUser = {
   restore_until?: number | null;
   can_restore?: boolean;
   can_delete?: boolean;
+  can_purge?: boolean;
   id: string;
   name: string;
   email: string;
@@ -928,12 +931,14 @@ const trashDeadline = (until?: number | null) =>
     ? `Có thể hoàn tác trước ${date(until)}.`
     : "Đã hết hạn hoàn tác, đang chờ dọn dữ liệu.";
 function trashLinkAction(l: AdminLink) {
-  if (l.deleted_at != null)
-    return l.can_restore
+  if (l.deleted_at != null) {
+    const restore = l.can_restore
       ? `<button class="action-button" data-directory-action="restore-link" data-slug="${esc(l.slug)}">${icon("restore")}<span>Hoàn tác</span></button>`
       : l.owner_deleted_at != null
         ? `<a class="action-button" href="/admin/?view=users&state=trashed">Khôi phục tài khoản trước</a>`
         : "";
+    return `${restore}<button class="action-button danger" data-directory-action="purge-link" data-slug="${esc(l.slug)}">${icon("delete")}<span>Xóa vĩnh viễn</span></button>`;
+  }
   return l.status !== "deleted"
     ? `<button class="action-button danger" data-directory-action="delete-link" data-slug="${esc(l.slug)}">${icon("delete")}<span>Xóa link</span></button>`
     : "";
@@ -948,7 +953,14 @@ function directoryLink(l: AdminLink) {
 }
 function directoryUser(u: AdminUser) {
   const trashed = u.deleted_at != null;
-  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked || trashed ? " danger" : ""}">${trashed ? "Trong thùng rác" : u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p>${trashed ? `<p class="small">${trashDeadline(u.restore_until)}</p>` : ""}</div><div class="actions"><a class="action-button" href="${ownerUrl(u.id, trashed)}">${icon("list")}<span>Xem link</span></a>${trashed ? (u.can_restore ? `<button class="action-button" data-directory-action="restore-user" data-user-id="${esc(u.id)}">${icon("restore")}<span>Hoàn tác</span></button>` : "") : `<button class="action-button danger" data-directory-action="toggle-user" data-user-id="${esc(u.id)}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button>${u.can_delete !== false ? `<button class="action-button danger" data-directory-action="delete-user" data-user-id="${esc(u.id)}">${icon("delete")}<span>Xóa tài khoản</span></button>` : ""}`}</div></article>`;
+  const trashActions =
+    (u.can_restore
+      ? `<button class="action-button" data-directory-action="restore-user" data-user-id="${esc(u.id)}">${icon("restore")}<span>Hoàn tác</span></button>`
+      : "") +
+    (u.can_purge
+      ? `<button class="action-button danger" data-directory-action="purge-user" data-user-id="${esc(u.id)}">${icon("delete")}<span>Xóa vĩnh viễn</span></button>`
+      : "");
+  return `<article class="directory-row user-row"><div class="directory-main"><h3>${esc(u.name || "Chưa có tên")}</h3><p translate="no">${esc(u.email)}</p><p class="small">Ngày tạo tài khoản: ${date(u.created_at)}</p></div><div class="directory-meta"><span class="badge${u.blocked || trashed ? " danger" : ""}">${trashed ? "Trong thùng rác" : u.blocked ? "Đã khóa" : "Được phép đăng nhập"}</span><p>${u.link_count.toLocaleString("vi-VN")} link còn lưu</p>${trashed ? `<p class="small">${trashDeadline(u.restore_until)}</p>` : ""}</div><div class="actions"><a class="action-button" href="${ownerUrl(u.id, trashed)}">${icon("list")}<span>Xem link</span></a>${trashed ? trashActions : `<button class="action-button danger" data-directory-action="toggle-user" data-user-id="${esc(u.id)}">${icon(u.blocked ? "unlock" : "lock")}<span>${u.blocked ? "Mở khóa tài khoản" : "Khóa tài khoản"}</span></button>${u.can_delete !== false ? `<button class="action-button danger" data-directory-action="delete-user" data-user-id="${esc(u.id)}">${icon("delete")}<span>Xóa tài khoản</span></button>` : ""}`}</div></article>`;
 }
 function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
   let actionPending = false;
@@ -1034,7 +1046,7 @@ function setupAdminActions(root: HTMLElement, refresh: () => Promise<unknown>) {
       title.replace(/\?$/, ""),
       String(body.action).startsWith("restore_")
         ? "restore"
-        : String(body.action).startsWith("delete_")
+        : /^(delete|purge)_/.test(String(body.action))
           ? "delete"
           : body.action === "remove_block" || body.blocked === false
             ? "unlock"
@@ -1168,7 +1180,7 @@ async function adminDirectory(view: "links" | "users") {
       pageUsers = data.users || [];
       $("#directory-note").textContent =
         filter === "trashed"
-          ? "Có thể hoàn tác trong 30 ngày kể từ lúc xóa. Sau hạn này, hệ thống sẽ dọn dữ liệu. Mã link vẫn được giữ lại và không cấp lại. Thời gian hiển thị theo giờ Việt Nam."
+          ? "Có thể hoàn tác trong 30 ngày hoặc chọn Xóa vĩnh viễn để dọn ngay. Xóa vĩnh viễn không thể hoàn tác. Sau 30 ngày, hệ thống tự dọn dữ liệu. Mã link không được cấp lại. Thời gian theo giờ Việt Nam."
           : view === "links"
             ? "Thời gian theo giờ Việt Nam. Link trong thùng rác chỉ khôi phục được trong 30 ngày. Link đã xóa vĩnh viễn hoặc mã cũ không thể khôi phục."
             : "Tổng tài khoản không bao gồm thùng rác. Số link gồm các link còn gắn với tài khoản, kể cả link đang ở thùng rác.";
@@ -1259,9 +1271,20 @@ async function adminDirectory(view: "links" | "users") {
     );
     if (!button) return;
     const operation = button.dataset.directoryAction || "";
-    if (["delete-user", "restore-user"].includes(operation)) {
+    if (["delete-user", "restore-user", "purge-user"].includes(operation)) {
       const user = pageUsers.find((u) => u.id === button.dataset.userId);
       if (!user) return;
+      if (operation === "purge-user") {
+        confirmAction(
+          { action: "purge_user", subject: user.id },
+          "Xóa vĩnh viễn tài khoản?",
+          user.email + (user.name ? " - " + user.name : ""),
+          "Xóa ngay thông tin tài khoản, toàn bộ link và thống kê còn gắn với tài khoản, kể cả link đã đưa vào thùng rác riêng. Không thể hoàn tác. Mã link đã dùng không được cấp lại.",
+          "#directory-message",
+          "Đã xóa vĩnh viễn tài khoản cùng thông tin link và thống kê liên quan.",
+        );
+        return;
+      }
       const restore = operation === "restore-user";
       confirmAction(
         { action: restore ? "restore_user" : "delete_user", subject: user.id },
@@ -1299,7 +1322,18 @@ async function adminDirectory(view: "links" | "users") {
     }
     const link = pageLinks.find((l) => l.slug === button.dataset.slug);
     if (!link) return;
-    if (["delete-link", "restore-link"].includes(operation)) {
+    if (["delete-link", "restore-link", "purge-link"].includes(operation)) {
+      if (operation === "purge-link") {
+        confirmAction(
+          { action: "purge_link", subject: link.slug },
+          "Xóa vĩnh viễn link?",
+          "oh.io.vn/" + link.slug + (link.label ? " - " + link.label : ""),
+          "Xóa ngay địa chỉ đích, tên ghi nhớ, thông tin người tạo và thống kê của link này. Không thể hoàn tác, kể cả khi khôi phục tài khoản sau đó. Mã link đã dùng không được cấp lại.",
+          "#directory-message",
+          "Đã xóa vĩnh viễn thông tin link và thống kê. Mã link không được cấp lại.",
+        );
+        return;
+      }
       const restore = operation === "restore-link";
       confirmAction(
         {

@@ -152,6 +152,9 @@ adminDirectory.get("/users", async (c) => {
       can_delete:
         u.deleted_at == null &&
         !protectedAdmin(c.env, c.get("policy"), String(u.id)),
+      can_purge:
+        u.deleted_at != null &&
+        !protectedAdmin(c.env, c.get("policy"), String(u.id)),
     })),
     total: count.results[0].total,
     totalUsers: total.results[0].total,

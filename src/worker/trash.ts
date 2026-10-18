@@ -6,6 +6,64 @@ export const restoreUntil = (deletedAt: number | null | undefined) =>
   deletedAt == null ? null : deletedAt + TRASH_RETENTION_MS;
 export const protectedAdmin = (env: Env, policy: Policy, id: string) =>
   env.ADMIN_GOOGLE_SUBS.split(",").includes(id) || policy.admin_sub === id;
+const erasedLinkFields = `status='deleted',owner_id=NULL,target=NULL,host=NULL,label=NULL,creator_key=NULL,
+  deleted_at=NULL,deletion_previous_status=NULL,deletion_user_id=NULL`;
+
+// Explicit admin purge skips the retention period, but only for current trash.
+// All predicates run inside one D1 transaction, including the audit. A restored
+// record cannot be erased by a stale confirmation, and codes remain reserved.
+async function permanentlyDelete(
+  c: Context<App>,
+  account: boolean,
+  subject: string,
+  now: number,
+) {
+  const trashedUser = `SELECT id FROM users WHERE id=? AND deleted_at IS NOT NULL
+    AND id IS NOT (SELECT admin_sub FROM policy WHERE id=1)`;
+  const statements = account
+    ? [
+        c.env.DB.prepare(
+          `DELETE FROM analytics WHERE slug IN (SELECT slug FROM links WHERE owner_id IN (${trashedUser}))`,
+        ).bind(subject),
+        c.env.DB.prepare(
+          `UPDATE links SET ${erasedLinkFields} WHERE owner_id IN (${trashedUser})`,
+        ).bind(subject),
+        c.env.DB.prepare(
+          `DELETE FROM sessions WHERE user_id IN (${trashedUser})`,
+        ).bind(subject),
+        c.env.DB.prepare(`DELETE FROM users WHERE id IN (${trashedUser})`).bind(
+          subject,
+        ),
+      ]
+    : [
+        c.env.DB.prepare(
+          "DELETE FROM analytics WHERE slug IN (SELECT slug FROM links WHERE slug=? AND deleted_at IS NOT NULL)",
+        ).bind(subject),
+        c.env.DB.prepare(
+          `UPDATE links SET ${erasedLinkFields} WHERE slug=? AND deleted_at IS NOT NULL`,
+        ).bind(subject),
+      ];
+  const result = await c.env.DB.batch([
+    ...statements,
+    c.env.DB.prepare(
+      "INSERT INTO admin_audit(actor,action,subject,created_at) SELECT ?,?,?,? WHERE changes()>0",
+    ).bind(
+      c.get("user")!.id,
+      account ? "purge_user" : "purge_link",
+      subject,
+      now,
+    ),
+  ]);
+  if (!result[statements.length - 1].meta.changes)
+    return c.json(
+      {
+        error:
+          "Không thể xóa vĩnh viễn: dữ liệu không còn trong thùng rác. Hãy tải lại danh sách.",
+      },
+      409,
+    );
+  return c.json({ ok: true });
+}
 
 // Called only after the shared admin, CSRF and write-rate-limit middleware.
 export async function trashAction(
@@ -19,6 +77,8 @@ export async function trashAction(
   const restore = action.startsWith("restore_");
   if (account && protectedAdmin(c.env, c.get("policy"), subject))
     return c.json({ error: "Không thể xóa tài khoản quản trị." }, 409);
+  if (action.startsWith("purge_"))
+    return permanentlyDelete(c, account, subject, now);
 
   let update: D1PreparedStatement;
   if (account) {
@@ -79,8 +139,7 @@ export async function purgeTrash(env: Env, now = Date.now()) {
         "DELETE FROM analytics WHERE slug IN (SELECT slug FROM links WHERE slug=? AND deleted_at<=?)",
       ).bind(slug, cutoff),
       env.DB.prepare(
-        `UPDATE links SET status='deleted',owner_id=NULL,target=NULL,host=NULL,label=NULL,creator_key=NULL,
-          deleted_at=NULL,deletion_previous_status=NULL,deletion_user_id=NULL
+        `UPDATE links SET ${erasedLinkFields}
         WHERE slug=? AND deleted_at<=?`,
       ).bind(slug, cutoff),
     ]);

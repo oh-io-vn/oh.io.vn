@@ -25,6 +25,7 @@ try {
     created_at: now,
     link_count: 1,
     can_delete: true,
+    can_purge: false,
     deleted_at: null,
   };
   const originalLink = {
@@ -89,11 +90,21 @@ try {
           can_restore: true,
         });
       if (b.action === "restore_link") Object.assign(link, originalLink);
+      if (b.action === "purge_link")
+        Object.assign(link, {
+          target: null,
+          label: null,
+          owner_id: null,
+          deleted_at: null,
+          status: "deleted",
+          effective_status: "deleted",
+        });
       if (b.action === "delete_user") {
         Object.assign(user, {
           deleted_at: now,
           restore_until: deadline,
           can_restore: true,
+          can_purge: true,
         });
         Object.assign(link, {
           status: "deleted",
@@ -108,6 +119,10 @@ try {
         Object.assign(user, originalUser);
         Object.assign(link, originalLink, { owner_deleted_at: null });
       }
+      if (b.action === "purge_user") {
+        user = null;
+        link = null;
+      }
       return json({
         ok: true,
         restore_until: b.action.startsWith("delete_") ? deadline : null,
@@ -119,13 +134,14 @@ try {
         filter = url.searchParams.get(isUsers ? "state" : "status");
       const entry = isUsers ? user : link;
       const show =
-        filter === "trashed"
+        entry &&
+        (filter === "trashed"
           ? entry.deleted_at != null
-          : entry.deleted_at == null;
+          : entry.deleted_at == null && entry.status !== "deleted");
       return json({
         [isUsers ? "users" : "links"]: show ? [entry] : [],
         total: show ? 1 : 0,
-        totalUsers: user.deleted_at == null ? 1 : 0,
+        totalUsers: user && user.deleted_at == null ? 1 : 0,
         owner: url.searchParams.get("owner") ? user : null,
         next: null,
         expiryHeld: false,
@@ -158,7 +174,7 @@ try {
     );
     await page.screenshot({
       path: `${out}/${name}.png`,
-      fullPage: true,
+      fullPage: (await page.locator("dialog[open]").count()) === 0,
       animations: "disabled",
     });
     if (measure.some((m) => m.scroll > m.width))
@@ -190,7 +206,7 @@ try {
     assert.deepEqual(tiny, [], "Buttons must retain touch targets");
     measurements.push({ name, measure });
   };
-  for (const width of [1440, 768, 390, 320]) {
+  for (const width of [1440, 768, 390, 375, 320]) {
     reset();
     await page.setViewportSize({ width, height: width < 700 ? 844 : 1000 });
     await go("view=links");
@@ -258,6 +274,84 @@ try {
     await confirmed();
     assert.equal(user.deleted_at, null);
     assert.equal(link.status, "active");
+    // Both irreversible actions are explicit, cancelable, and only in trash.
+    assert.equal(
+      await page.locator('[data-directory-action="purge-user"]').count(),
+      0,
+    );
+    await go("view=links");
+    assert.equal(
+      await page.locator('[data-directory-action="purge-link"]').count(),
+      0,
+    );
+    await click("delete-link");
+    await confirmed();
+    await go("view=links&status=trashed&q=tai-lieu&owner=member");
+    const beforePurge = actions.length;
+    await page.locator('[data-directory-action="purge-link"] svg').click();
+    assert.equal(actions.length, beforePurge);
+    assert.match(
+      await page.locator("#admin-confirm-description").textContent(),
+      /Không thể hoàn tác/,
+    );
+    assert.equal(
+      await page
+        .locator("#confirm-admin-action")
+        .evaluate((el) => el.classList.contains("danger-button")),
+      true,
+    );
+    assert.equal(await page.locator(":focus").textContent(), "Hủy");
+    await capture(`purge-link-${width}`);
+    await page.keyboard.press("Escape");
+    assert.equal(actions.length, beforePurge);
+    assert.equal(
+      await page.locator(":focus").getAttribute("data-directory-action"),
+      "purge-link",
+    );
+    await page.keyboard.press("Enter");
+    await confirmed();
+    assert.deepEqual(actions.at(-1), {
+      action: "purge_link",
+      subject: "tai-lieu",
+    });
+    assert.equal(await page.locator(".directory-row").count(), 0);
+    assert.match(page.url(), /status=trashed/);
+    assert.match(page.url(), /q=tai-lieu/);
+    assert.match(page.url(), /owner=member/);
+    assert.equal(
+      await page.locator(":focus").getAttribute("id"),
+      "directory-message",
+    );
+    await go("view=users");
+    await click("delete-user");
+    await confirmed();
+    await go("view=users&state=trashed");
+    assert.equal(
+      await page
+        .locator('[data-directory-action="purge-user"]')
+        .evaluate((el) => getComputedStyle(el).color),
+      "rgb(165, 50, 50)",
+    );
+    await click("purge-user");
+    assert.match(
+      await page.locator("#admin-confirm-subject").textContent(),
+      /member@example.invalid/,
+    );
+    assert.match(
+      await page.locator("#admin-confirm-description").textContent(),
+      /kể cả link đã đưa vào thùng rác riêng/,
+    );
+    await capture(`purge-user-${width}`);
+    await confirmed();
+    assert.deepEqual(actions.at(-1), {
+      action: "purge_user",
+      subject: "member",
+    });
+    assert.equal(await page.locator(".directory-row").count(), 0);
+    assert.match(
+      await page.locator("#directory-message").textContent(),
+      /Đã xóa vĩnh viễn tài khoản/,
+    );
   }
   reset();
   await page.setViewportSize({ width: 390, height: 844 });
@@ -306,6 +400,67 @@ try {
     /Đã hết hạn hoàn tác/,
   );
   await capture("expired-trash");
+  await click("purge-link");
+  fail = true;
+  await page.locator("#confirm-admin-action").click();
+  await page
+    .locator("#admin-confirm-message")
+    .filter({ hasText: "Chưa lưu được" })
+    .waitFor();
+  assert.equal(link.effective_status, "trashed");
+  await capture("purge-error");
+  fail = false;
+  delay = 700;
+  failRefresh = true;
+  const beforeRetry = actions.length;
+  await page.locator("#confirm-admin-action").click();
+  assert(await page.locator("#confirm-admin-action").isDisabled());
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Escape");
+  assert(await page.locator("#admin-confirm-dialog").isVisible());
+  await page.locator("#admin-confirm-dialog").waitFor({ state: "hidden" });
+  assert.equal(actions.length, beforeRetry + 1);
+  assert.match(
+    await page.locator("#directory-message").textContent(),
+    /Đã xóa vĩnh viễn.*Chưa tải được/,
+  );
+  delay = 0;
+  reset();
+  await go("view=users");
+  await click("delete-user");
+  await confirmed();
+  await go("view=users&state=trashed");
+  await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+  await capture("purge-user-text-200-list");
+  await click("purge-user");
+  await capture("purge-user-text-200-dialog");
+  await page.keyboard.press("Tab");
+  assert.equal(
+    await page.locator(":focus").getAttribute("id"),
+    "confirm-admin-action",
+  );
+  const focusedButton = await page
+    .locator("#confirm-admin-action")
+    .boundingBox();
+  assert(
+    focusedButton &&
+      focusedButton.y >= 0 &&
+      focusedButton.y + focusedButton.height <= 844,
+  );
+  await capture("purge-user-text-200-action");
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await go("view=users&state=trashed");
+  await click("purge-user");
+  await capture("purge-user-landscape-reduced-motion");
+  await page.keyboard.press("Escape");
+  user.can_purge = false;
+  await go("view=users&state=trashed");
+  assert.equal(
+    await page.locator('[data-directory-action="purge-user"]').count(),
+    0,
+  );
   reset();
   user.can_delete = false;
   await go("view=users");
