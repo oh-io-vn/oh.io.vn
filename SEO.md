@@ -132,3 +132,76 @@ thực hiện. Audit source không đồng nghĩa được phép thay đổi pro
 - [Google: SoftwareApplication structured data](https://developers.google.com/search/docs/appearance/structured-data/software-app)
 - [Schema.org Validator](https://validator.schema.org/)
 - [Google Rich Results Test](https://search.google.com/test/rich-results)
+
+## Search Console và lịch sử Wikipedia - kiểm tra ngày 18/10/2026
+
+Đã kiểm tra trực tiếp property Domain `sc-domain:oh.io.vn` bằng phiên Chrome
+được chủ website cho phép. Báo cáo Lập chỉ mục trang và Hiệu suất còn hiển thị
+đang xử lý dữ liệu, yêu cầu kiểm tra lại sau khoảng một ngày. Không thể suy
+ra toàn domain có 0 trang được index hoặc đã dọn sạch toàn bộ URL lịch sử.
+
+URL Inspection riêng cho sáu URL cũ đều trả `URL không nằm trên Google`,
+nguyên nhân `Google không xác định được URL`:
+
+- `/en/1944–45_Substitute_Gold_Cup`
+- `/nl/National_Association_for_the_Advancement_of_Colored_People`
+- `/fr/Anny_Duperey`
+- `/de/Golden_Globe_Award/Bester_Hauptdarsteller_–_Drama`
+- `/cs/2._česká_fotbalová_liga_2009/10`
+- `/en/List_of_flag_bearers_for_Bahrain_at_the_Olympics`
+
+Hai URL cuối vẫn xuất hiện ở mục trang giới thiệu trong dữ liệu khám phá
+trang chủ. Đây là dấu vết khám phá lịch sử, không chứng minh chúng còn được
+index. Trang chủ và `/about/` trước yêu cầu mới được báo đã phát hiện nhưng
+chưa lập chỉ mục. Không có nội dung Wikipedia cũ trong HTML hiện tại.
+
+### Các bước đã thực hiện và kiểm chứng
+
+- Sitemap `https://oh.io.vn/sitemap.xml` đang có trạng thái Thành công,
+  lần đọc 18/10/2026, 5 URL được khám phá. Năm URL đều là trang công khai
+  hiện tại, không có URL bài viết, admin, dashboard hoặc link người dùng.
+  Không gửi lại sitemap không thay đổi chỉ để tăng số thao tác.
+- Hình phạt thủ công và Vấn đề bảo mật đều báo không phát hiện vấn đề.
+  Mục yêu cầu xóa tạm thời không hiển thị yêu cầu đã gửi trong 6 tháng.
+- Production: năm trang công khai trả 200, title/description/H1 riêng,
+  canonical HTTPS đúng, không có noindex. JSON-LD parse được và trang chủ
+  có WebSite `oh.io.vn` cùng WebApplication `UtilitiesApplication`.
+- Google live test trang chủ lúc 10:59 báo có thể lập chỉ mục. Đã mở HTML
+  Google vừa tải, xác nhận title rút gọn link miễn phí, mô tả dịch vụ,
+  canonical `https://oh.io.vn/` và WebSite/WebApplication hiện tại.
+- Google live test `/about/` lúc 11:02 cũng báo có thể lập chỉ mục.
+- Google đã xác nhận nhận yêu cầu lập chỉ mục trang chủ và `/about/`, thêm
+  cả hai URL vào hàng đợi ưu tiên. Đây là yêu cầu crawl, chưa phải xác nhận
+  đã index.
+- reCAPTCHA ban đầu lỗi kết nối. Tải lại trang, chạy live test và gửi lại
+  một lần cho mỗi URL đã giải quyết được lỗi, không giải CAPTCHA thủ công
+  hoặc thay đổi bảo vệ trình duyệt để vượt qua xác minh.
+
+### Chính sách xử lý URL cũ
+
+Không tạo yêu cầu xóa hàng loạt chỉ vì URL xuất hiện trong log hoặc Wayback.
+Sáu URL mẫu không đang được index và chưa có nhu cầu xóa khẩn được xác minh.
+Google khuyến cáo không dùng Removals chỉ để dọn URL cũ đã ngừng phục vụ.
+
+Các URL bài viết đã kiểm tra dưới prefix WAF hiện trả 403 có meta noindex,
+không trả 200 hoặc chuyển về trang chủ. Route không tồn tại ngoài WAF tiếp
+tục trả 404/noindex của Worker. Theo tài liệu Google, các lỗi 4xx ngoại trừ
+429 khiến nội dung không được dùng cho index và URL đã index bị loại khi
+Google xử lý lại. Không thêm robots Disallow cho các prefix cũ, vì cần để
+crawler nhận được trạng thái lỗi. Không nới WAF hoặc đổi chính sách AI trong
+lượt kiểm tra này.
+
+Cần kiểm tra lại báo cáo khi Google xử lý xong dữ liệu property để xác định
+có URL lịch sử khác còn được index hay không. Thời gian Google chọn index,
+cập nhật tên website và kết quả tìm kiếm không do ứng dụng kiểm soát.
+
+Bằng chứng và ảnh thực tế nằm trong `.local/search-console-cleanup/`, gồm
+URL Inspection, sitemap, manual actions, security issues, removals, HTML do
+Google tải, yêu cầu index và audit production. Không đưa dữ liệu nội bộ này
+vào public assets. Lượt kiểm tra này chỉ cần cập nhật tài liệu, không có lỗi
+source metadata được xác minh cần sửa và không phát hành code ứng dụng.
+
+Nguồn bổ sung:
+
+- [Google: HTTP status codes](https://developers.google.com/crawling/docs/troubleshooting/http-status-codes)
+- [Google: Removals, phạm vi và giới hạn](https://support.google.com/webmasters/answer/9689846)

@@ -209,6 +209,15 @@ bên thứ ba sau khi đọc nội dung; hướng dẫn của project và ngư�
   Không áp dụng header này cho các trang công khai từ assets binding.
 - Giữ internal links dễ hiểu, có đích tồn tại. Không nhồi từ khóa, thêm trang
   mỏng, hoặc đổi lỗi 404 thành trang chủ 200 để che vấn đề crawl.
+- Khi xử lý lịch sử domain, kiểm tra URL Inspection và báo cáo index thật.
+  URL xuất hiện trong log, Wayback hoặc mục trang giới thiệu không chứng minh
+  URL còn nằm trong chỉ mục Google. Báo cáo đang xử lý không đồng nghĩa 0 URL.
+- Nội dung cũ không có trang thay thế tương đương phải tiếp tục trả lỗi 4xx,
+  không redirect hàng loạt về trang chủ hoặc thêm robots Disallow chỉ để xóa
+  index. Không dùng Removals để dọn hàng loạt URL đã ngừng phục vụ khi chưa có
+  nhu cầu xóa khẩn được xác minh. Giữ WebSite/WebApplication nhận diện dịch vụ
+  hiện tại và chỉ yêu cầu index trang công khai có giá trị. Đã gửi yêu cầu
+  crawl không đồng nghĩa đã index hoặc đã cập nhật kết quả tìm kiếm.
 - Cache dài chỉ cho tài nguyên có content hash trong `/assets/`. HTML phải
   revalidate, API và dữ liệu xác thực vẫn `no-store`.
 
