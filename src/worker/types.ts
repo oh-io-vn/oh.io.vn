@@ -53,6 +53,7 @@ export interface Link {
   created_at: number;
   last_access_at: number;
   idle_expires_at: number;
+  no_idle_expiry: number;
   fixed_expires_at: number | null;
   months: number;
   status: string;

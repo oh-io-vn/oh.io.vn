@@ -16,6 +16,7 @@ const allowed = {
     "created_at",
     "last_access_at",
     "idle_expires_at",
+    "no_idle_expiry",
     "fixed_expires_at",
     "months",
     "status",
@@ -52,18 +53,15 @@ let sql =
 for (const table of ["users", "links", "blocked_targets", "policy"])
   for (const row of data.tables[table]) {
     const columns = allowed[table];
-    sql += `INSERT OR REPLACE INTO ${table}(${columns.join(",")}) VALUES(${columns.map((c) => sqlValue(row[c])).join(",")});\n`;
+    sql += `INSERT OR REPLACE INTO ${table}(${columns.join(",")}) VALUES(${columns.map((c) => sqlValue(c === "no_idle_expiry" ? (row[c] ?? 0) : row[c])).join(",")});\n`;
   }
 // Force preservation and disable creates until the operator finishes validation.
 sql +=
   "UPDATE policy SET expiry_hold=1,create_enabled=0,heartbeat=0,monitoring=NULL WHERE id=1;\nDELETE FROM sessions;\nDELETE FROM creation_events;\n";
 const migration = await readFile(
-  new URL("../migrations/0003_rename_link_codes.sql", import.meta.url),
+  new URL("../migrations/0006_admin_no_idle_expiry.sql", import.meta.url),
   "utf8",
 );
-sql += migration.slice(
-  migration.indexOf("CREATE TRIGGER enforce_creation"),
-  migration.indexOf("CREATE TRIGGER reserve_renamed_slug"),
-);
+sql += migration.slice(migration.indexOf("CREATE TRIGGER enforce_creation"));
 await writeFile(process.argv[3], sql);
 console.log("Restore SQL prepared for an isolated empty database.");

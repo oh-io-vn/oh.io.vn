@@ -1,6 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { hash } from "../src/worker/security";
+import { maintenance } from "../src/worker/service";
+import type { Env } from "../src/worker/types";
 import { vietnamDay } from "../src/shared/rules";
 
 const now = Date.now();
@@ -304,6 +306,71 @@ describe("admin link and account directories", () => {
       ((await (await get("links?status=expired")).json()) as any).total,
     ).toBe(1);
   });
+  it("lets admins exempt links from inactivity expiry while retaining fixed expiry", async () => {
+    await link("permanent");
+    expect((await edit("permanent", { no_idle_expiry: true })).status).toBe(
+      200,
+    );
+    await env.DB.prepare(
+      "UPDATE links SET idle_expires_at=? WHERE slug='permanent'",
+    )
+      .bind(now - 1000)
+      .run();
+
+    const details = (await (await get("links/permanent")).json()) as any;
+    expect(details.link.no_idle_expiry).toBe(1);
+    expect(details.link.expires_at).toBeNull();
+    expect(details.link.effective_expires_at).toBeNull();
+    expect(details.link.effective_status).toBe("active");
+
+    await maintenance(env as unknown as Env);
+    expect(
+      await env.DB.prepare(
+        "SELECT status FROM links WHERE slug='permanent'",
+      ).first(),
+    ).toEqual({ status: "active" });
+    const redirect = await SELF.fetch("http://localhost/permanent", {
+      redirect: "manual",
+    });
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("Location")).toBe(
+      "https://example.org/updated",
+    );
+
+    await env.DB.prepare(
+      "UPDATE links SET fixed_expires_at=? WHERE slug='permanent'",
+    )
+      .bind(now - 1000)
+      .run();
+    expect((await SELF.fetch("http://localhost/permanent")).status).toBe(410);
+    await maintenance(env as unknown as Env);
+    expect(
+      await env.DB.prepare(
+        "SELECT status FROM links WHERE slug='permanent'",
+      ).first(),
+    ).toEqual({ status: "expired" });
+  });
+  it("keeps permanent links counted toward the active-link quota", async () => {
+    await env.DB.prepare("UPDATE policy SET active_limit=1").run();
+    await link("quota-permanent");
+    await env.DB.prepare(
+      "UPDATE links SET no_idle_expiry=1 WHERE slug='quota-permanent'",
+    ).run();
+    let error: unknown;
+    try {
+      await link("quota-second");
+    } catch (caught) {
+      error = caught;
+    }
+    expect(String(error)).toContain("quota:active");
+    expect(
+      (
+        (await env.DB.prepare(
+          "SELECT count(*) AS count FROM links WHERE owner_id='owner' AND status='active'",
+        ).first()) as any
+      ).count,
+    ).toBe(1);
+  });
   it("keeps tombstones searchable without inventing an owner", async () => {
     await link("old-code");
     expect((await edit("old-code", { slug: "new-code" })).status).toBe(200);
@@ -433,5 +500,46 @@ describe("admin link and account directories", () => {
     expect(
       (await env.DB.prepare("SELECT count(*) n FROM admin_audit").first())!.n,
     ).toBe(0);
+  });
+  it("prevents owners from changing the admin-only inactivity-expiry option", async () => {
+    await link("admin-expiry");
+    expect((await edit("admin-expiry", { no_idle_expiry: true })).status).toBe(
+      200,
+    );
+    const ownerHeaders = await headers("owner");
+    const denied = await SELF.fetch(
+      "http://localhost/api/links/admin-expiry/edit",
+      {
+        method: "PATCH",
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          target: "https://example.org/owner-attempt",
+          no_idle_expiry: false,
+        }),
+      },
+    );
+    expect(denied.status).toBe(403);
+    const allowed = await SELF.fetch(
+      "http://localhost/api/links/admin-expiry/edit",
+      {
+        method: "PATCH",
+        headers: await headers("owner"),
+        body: JSON.stringify({ target: "https://example.org/owner-edit" }),
+      },
+    );
+    expect(allowed.status).toBe(200);
+    expect(
+      await env.DB.prepare(
+        "SELECT no_idle_expiry,target FROM links WHERE slug='admin-expiry'",
+      ).first(),
+    ).toEqual({ no_idle_expiry: 1, target: "https://example.org/owner-edit" });
+    expect((await edit("admin-expiry", { no_idle_expiry: false })).status).toBe(
+      200,
+    );
+    expect(
+      await env.DB.prepare(
+        "SELECT no_idle_expiry FROM links WHERE slug='admin-expiry'",
+      ).first(),
+    ).toEqual({ no_idle_expiry: 0 });
   });
 });

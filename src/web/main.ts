@@ -12,8 +12,9 @@ type LinkData = {
   target: string | null;
   status: string;
   created_at: number;
-  expires_at: number;
+  expires_at: number | null;
   fixed_expires_at: number | null;
+  no_idle_expiry: number;
   owner_id?: string | null;
 };
 type Stats = {
@@ -534,7 +535,11 @@ const expiryHoldNotice =
   "Link tạm thời không hết hạn vì lâu không có lượt mở. Ngày hết hạn do bạn tự đặt vẫn áp dụng.";
 function card(l: LinkData) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">${icon("copy")}<span>Sao chép</span></button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">${icon("delete")}<span>Xóa</span></button></div></article>`;
+  const expiry =
+    l.expires_at === null
+      ? "Không hết hạn do lâu không có lượt mở"
+      : `${active ? "Hết hạn" : "Đã hết hạn"} ${date(l.expires_at)}`;
+  return `<article class="link-card"><div><h2 class="link-title">${esc(l.label || "Link chưa đặt tên")} ${!active ? `<span class="badge">${l.status === "blocked" ? "Đã khóa" : l.status === "deleted" ? "Đã xóa" : "Hết hạn"}</span>` : ""}</h2><a href="/${esc(l.slug)}" target="_blank" rel="noopener" translate="no">oh.io.vn/${esc(l.slug)}</a><div class="link-target" translate="no">${esc(l.target ?? "Địa chỉ đích đã được xóa")}</div><div class="link-meta">${!active && l.status !== "active" && l.status !== "expired" ? esc(linkStatus(l.status)) : expiry}</div></div><div class="actions"><button class="action-button" data-action="copy" data-slug="${esc(l.slug)}" aria-label="Sao chép link ${esc(l.slug)}">${icon("copy")}<span>Sao chép</span></button>${active ? `<button class="action-button" data-action="edit" data-slug="${esc(l.slug)}" aria-label="Sửa link ${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-action="stats" data-slug="${esc(l.slug)}" aria-label="Thống kê link ${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button><button class="action-button danger" data-action="delete" data-slug="${esc(l.slug)}" aria-label="Xóa link ${esc(l.slug)}">${icon("delete")}<span>Xóa</span></button></div></article>`;
 }
 async function loadLinks(append = false) {
   const more = $<HTMLButtonElement>("#load-more");
@@ -647,12 +652,17 @@ async function openLinkDialog(link: LinkData, action: string) {
   if (action === "edit") {
     selected = link;
     const form = $<HTMLFormElement>("#edit-form");
+    const adminEdit = !!$("#admin-directory");
     (form.elements.namedItem("target") as HTMLInputElement).value =
       selected.target ?? "";
     (form.elements.namedItem("label") as HTMLInputElement).value =
       selected.label ?? "";
     (form.elements.namedItem("fixed_expires_at") as HTMLInputElement).value =
       localDate(selected.fixed_expires_at);
+    $("#edit-no-idle-field").hidden = !adminEdit;
+    $("#edit-no-idle-help").hidden = !adminEdit;
+    $<HTMLInputElement>('#edit-form [name="no_idle_expiry"]').checked =
+      adminEdit && !!selected.no_idle_expiry;
     $("#edit-slug").textContent =
       `oh.io.vn/${selected.slug}${$("#admin-directory") ? ` - ${ownerLabel(link as AdminLink)}` : ""}`;
     $<HTMLInputElement>("#edit-code").value = selected.slug;
@@ -749,14 +759,17 @@ function setupLinkDialogs(reload: () => Promise<boolean>) {
     form.setAttribute("aria-busy", "true");
     message("#edit-message", "");
     try {
+      const payload: Record<string, unknown> = {
+        target: f.get("target"),
+        slug: newSlug,
+        label: f.get("label"),
+        fixed_expires_at: fixed ? new Date(fixed).toISOString() : null,
+      };
+      if ($("#admin-directory"))
+        payload.no_idle_expiry = f.get("no_idle_expiry") === "on";
       await api(`${linkApiBase()}/${editedSlug}/edit`, {
         method: "PATCH",
-        body: JSON.stringify({
-          target: f.get("target"),
-          slug: newSlug,
-          label: f.get("label"),
-          fixed_expires_at: fixed ? new Date(fixed).toISOString() : null,
-        }),
+        body: JSON.stringify(payload),
       });
       $<HTMLDialogElement>("#edit-dialog").close();
       const reloaded = await reload();
@@ -905,6 +918,7 @@ type AdminLink = LinkData & {
   owner_name: string | null;
   last_access_at: number;
   idle_expires_at: number;
+  no_idle_expiry: number;
   effective_expires_at: number | null;
   effective_status: string;
 };
@@ -944,12 +958,18 @@ function trashLinkAction(l: AdminLink) {
     : "";
 }
 const expiryLabel = (l: AdminLink) =>
-  l.effective_expires_at === null
-    ? "Đang tạm dừng hết hạn do không hoạt động"
-    : date(l.effective_expires_at);
+  l.no_idle_expiry && l.fixed_expires_at === null
+    ? "Không hết hạn do lâu không có lượt mở"
+    : l.effective_expires_at === null
+      ? "Đang tạm dừng hết hạn do không hoạt động"
+      : date(l.effective_expires_at);
 function directoryLink(l: AdminLink) {
   const active = canEditLink(l, expiryHold);
-  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id, l.owner_deleted_at != null)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${["blocked", "trashed"].includes(l.effective_status) ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.deleted_at != null ? trashDeadline(l.restore_until) : l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : `Hết hạn: ${expiryLabel(l)}`}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button>${active ? `<button class="action-button danger" data-directory-action="block-link" data-slug="${esc(l.slug)}">${icon("lock")}<span>Khóa link</span></button>` : ""}${trashLinkAction(l)}</div></article>`;
+  const expirySummary =
+    l.effective_expires_at === null
+      ? expiryLabel(l)
+      : `Hết hạn: ${date(l.effective_expires_at)}`;
+  return `<article class="directory-row" aria-label="Link ${esc(l.slug)}"><div class="directory-main"><h3>${esc(l.label || l.slug)}</h3><a translate="no" href="/${esc(l.slug)}" target="_blank" rel="noopener">oh.io.vn/${esc(l.slug)}</a><p class="link-target" translate="no">${esc(l.target || "Địa chỉ đích đã được xóa")}</p><p class="small directory-owner-line">Người tạo: ${l.owner_id ? `<a href="${ownerUrl(l.owner_id, l.owner_deleted_at != null)}">${esc(ownerLabel(l))}</a>` : esc(ownerLabel(l))}</p></div><div class="directory-meta"><span class="badge${["blocked", "trashed"].includes(l.effective_status) ? " danger" : ""}">${esc(linkStatus(l.effective_status))}</span><p class="small">${l.deleted_at != null ? trashDeadline(l.restore_until) : l.effective_status === "deleted" ? "Mã được giữ lại, không cấp lại." : expirySummary}</p></div><div class="actions"><button class="action-button" data-directory-action="detail" data-slug="${esc(l.slug)}">${icon("info")}<span>Chi tiết</span></button>${active ? `<button class="action-button" data-action="edit" data-directory-action="edit" data-slug="${esc(l.slug)}">${icon("edit")}<span>Sửa</span></button>` : ""}<button class="action-button" data-directory-action="stats" data-slug="${esc(l.slug)}">${icon("stats")}<span>Thống kê</span></button>${active ? `<button class="action-button danger" data-directory-action="block-link" data-slug="${esc(l.slug)}">${icon("lock")}<span>Khóa link</span></button>` : ""}${trashLinkAction(l)}</div></article>`;
 }
 function directoryUser(u: AdminUser) {
   const trashed = u.deleted_at != null;
@@ -1381,7 +1401,7 @@ async function adminDirectory(view: "links" | "users") {
       const field = (label: string, value: string) =>
         `<div><dt>${label}</dt><dd>${value}</dd></div>`;
       $("#link-detail-content").innerHTML =
-        `<p class="dialog-context" translate="no">oh.io.vn/${esc(l.slug)}</p><dl class="link-detail-fields">${field("Tên ghi nhớ", esc(l.label || "Chưa đặt tên"))}${field("Người tạo", l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(l.owner_name)} - ${esc(l.owner_email)}</a>` : esc(ownerLabel(l)))}${field("Địa chỉ đích", esc(l.target || "Đã xóa thông tin"))}${field("Trạng thái", esc(linkStatus(l.effective_status)))}${l.deleted_at != null ? field("Đưa vào thùng rác", date(l.deleted_at)) + field("Hạn hoàn tác", trashDeadline(l.restore_until)) : ""}${field("Ngày tạo", date(l.created_at))}${field("Hết hạn", expiryLabel(l))}${field("Hạn do không có lượt mở", date(l.idle_expires_at))}${field("Hạn cố định", l.fixed_expires_at ? date(l.fixed_expires_at) : "Chưa đặt")}${field("Mốc hoạt động gần nhất", date(l.last_access_at))}</dl><p class="small">Mốc hoạt động là lúc tạo link hoặc lượt mở hợp lệ gần nhất. ${data.expiryHeld ? expiryHoldNotice : "Link hết hạn khi đến một trong hai hạn trên, tùy hạn nào đến trước."}</p><div class="dialog-actions">${canEditLink(l, data.expiryHeld) ? `<button class="secondary" id="detail-edit">${icon("edit")}<span>Sửa link</span></button>` : ""}<button class="secondary" id="detail-stats">${icon("stats")}<span>Thống kê</span></button></div>`;
+        `<p class="dialog-context" translate="no">oh.io.vn/${esc(l.slug)}</p><dl class="link-detail-fields">${field("Tên ghi nhớ", esc(l.label || "Chưa đặt tên"))}${field("Người tạo", l.owner_id ? `<a href="${ownerUrl(l.owner_id)}">${esc(l.owner_name)} - ${esc(l.owner_email)}</a>` : esc(ownerLabel(l)))}${field("Địa chỉ đích", esc(l.target || "Đã xóa thông tin"))}${field("Trạng thái", esc(linkStatus(l.effective_status)))}${l.deleted_at != null ? field("Đưa vào thùng rác", date(l.deleted_at)) + field("Hạn hoàn tác", trashDeadline(l.restore_until)) : ""}${field("Ngày tạo", date(l.created_at))}${field("Hết hạn", expiryLabel(l))}${field("Hạn do không có lượt mở", l.no_idle_expiry ? "Không áp dụng cho link này" : date(l.idle_expires_at))}${field("Hạn cố định", l.fixed_expires_at ? date(l.fixed_expires_at) : "Chưa đặt")}${field("Mốc hoạt động gần nhất", date(l.last_access_at))}</dl><p class="small">Mốc hoạt động là lúc tạo link hoặc lượt mở hợp lệ gần nhất. ${l.no_idle_expiry ? "Link này không hết hạn do lâu không có lượt mở. Hạn cố định vẫn được áp dụng." : data.expiryHeld ? expiryHoldNotice : "Link hết hạn khi đến một trong hai hạn trên, tùy hạn nào đến trước."}</p><div class="dialog-actions">${canEditLink(l, data.expiryHeld) ? `<button class="secondary" id="detail-edit">${icon("edit")}<span>Sửa link</span></button>` : ""}<button class="secondary" id="detail-stats">${icon("stats")}<span>Thống kê</span></button></div>`;
       $("#detail-edit")?.addEventListener("click", () => {
         detailDialog.close();
         void openLinkDialog(l, "edit");

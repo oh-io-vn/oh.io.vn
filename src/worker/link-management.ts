@@ -20,15 +20,27 @@ export async function editLink(c: Context<App>, admin = false) {
   if (
     l.status !== "active" ||
     (l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
-    (!held && l.idle_expires_at <= now)
+    (!held && !l.no_idle_expiry && l.idle_expires_at <= now)
   )
     return c.json({ error: "Link đã ngừng hoạt động nên không thể sửa." }, 409);
   const b = await readBody(c);
-  let target: URL, slug: string, fixed: number | null;
+  if (Object.hasOwn(b, "no_idle_expiry") && !admin)
+    return c.json({ error: "Chỉ Admin mới được đổi tùy chọn hết hạn." }, 403);
+  let target: URL, slug: string, fixed: number | null, noIdleExpiry: number;
   try {
     target = targetValue(b.target, c.env.APP_ORIGIN);
     slug = b.slug === undefined ? l.slug : slugValue(b.slug);
     fixed = fixedExpiry(b.fixed_expires_at, now);
+    noIdleExpiry = l.no_idle_expiry;
+    if (Object.hasOwn(b, "no_idle_expiry")) {
+      if (typeof b.no_idle_expiry !== "boolean")
+        throw new Error("Tùy chọn không hết hạn không hợp lệ.");
+      noIdleExpiry = Number(b.no_idle_expiry);
+    }
+    if (!held && noIdleExpiry === 0 && l.idle_expires_at <= now)
+      throw new Error(
+        "Không thể bật lại hạn không hoạt động sau khi link đã hết hạn.",
+      );
     if (await blocked(c.env, target)) throw new Error("Địa chỉ đã bị chặn.");
   } catch (e) {
     return c.json({ error: (e as Error).message }, 400);
@@ -49,16 +61,18 @@ export async function editLink(c: Context<App>, admin = false) {
     // The single update, FK cascade and tombstone trigger are atomic. Recheck
     // ownership/status/expiry here in case the record changed after the read.
     const update = c.env.DB.prepare(
-      "UPDATE links SET slug=?,target=?,host=?,label=?,fixed_expires_at=? WHERE slug=? AND owner_id IS ? AND status='active' AND (fixed_expires_at IS NULL OR fixed_expires_at>?) AND (?=1 OR idle_expires_at>?)",
+      "UPDATE links SET slug=?,target=?,host=?,label=?,fixed_expires_at=?,no_idle_expiry=? WHERE slug=? AND owner_id IS ? AND status='active' AND (fixed_expires_at IS NULL OR fixed_expires_at>?) AND (?=1 OR ?=1 OR idle_expires_at>?)",
     ).bind(
       slug,
       target.toString(),
       target.hostname,
       typeof b.label === "string" ? b.label.trim().slice(0, 120) : null,
       fixed,
+      noIdleExpiry,
       l.slug,
       l.owner_id,
       now,
+      noIdleExpiry,
       Number(held),
       now,
     );

@@ -8,7 +8,7 @@ import { protectedAdmin, restoreUntil } from "./trash";
 export const adminDirectory = new Hono<App>();
 // Parent middleware authorizes every /api/admin/* request before this router.
 const columns = `l.slug,l.owner_id,l.target,l.host,l.label,l.created_at,
-  l.last_access_at,l.idle_expires_at,l.fixed_expires_at,l.months,l.status,
+  l.last_access_at,l.idle_expires_at,l.no_idle_expiry,l.fixed_expires_at,l.months,l.status,
   l.deleted_at,l.deletion_user_id,
   u.email AS owner_email,u.name AS owner_name,u.deleted_at AS owner_deleted_at`;
 type DirectoryLink = Link & {
@@ -17,7 +17,7 @@ type DirectoryLink = Link & {
   owner_deleted_at: number | null;
 };
 const effectiveStatus = `CASE WHEN l.deleted_at IS NOT NULL THEN 'trashed' WHEN l.status='active' AND
-  (l.fixed_expires_at<=? OR (?=0 AND l.idle_expires_at<=?))
+  (l.fixed_expires_at<=? OR (?=0 AND l.no_idle_expiry=0 AND l.idle_expires_at<=?))
   THEN 'expired' ELSE l.status END`;
 const serialize = (l: DirectoryLink, held: boolean, now: number) => ({
   ...publicLink(l),
@@ -31,12 +31,17 @@ const serialize = (l: DirectoryLink, held: boolean, now: number) => ({
       ? "trashed"
       : l.status === "active" &&
           ((l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
-            (!held && l.idle_expires_at <= now))
+            (!held && !l.no_idle_expiry && l.idle_expires_at <= now))
         ? "expired"
         : l.status,
-  effective_expires_at: held
-    ? l.fixed_expires_at
-    : Math.min(l.idle_expires_at, l.fixed_expires_at ?? Infinity),
+  effective_expires_at:
+    held || l.no_idle_expiry
+      ? l.fixed_expires_at
+      : Number.isFinite(
+            Math.min(l.idle_expires_at, l.fixed_expires_at ?? Infinity),
+          )
+        ? Math.min(l.idle_expires_at, l.fixed_expires_at ?? Infinity)
+        : null,
 });
 function cursor(value: string | undefined): [number, string] {
   if (!value) return [Number.MAX_SAFE_INTEGER, ""];

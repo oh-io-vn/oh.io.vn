@@ -55,6 +55,7 @@ try {
     last_access_at: now,
     expires_at: now + 86400000,
     idle_expires_at: now + 86400000,
+    no_idle_expiry: 0,
     fixed_expires_at: null,
     effective_expires_at: now + 86400000,
     owner_id: "one",
@@ -141,10 +142,12 @@ try {
     if (path.endsWith("/edit")) {
       if (editFailure) return json({ error: "Địa chỉ đã bị chặn." }, 400);
       lastEdit = { path, body: request.postDataJSON() };
-      Object.assign(
-        links.find((l) => l.slug === path.split("/")[4]),
-        lastEdit.body,
-      );
+      const edited = links.find((l) => l.slug === path.split("/")[4]);
+      Object.assign(edited, lastEdit.body);
+      if (lastEdit.body.no_idle_expiry) {
+        edited.expires_at = edited.fixed_expires_at;
+        edited.effective_expires_at = edited.fixed_expires_at;
+      }
       return json({ ok: true });
     }
     if (path.endsWith("/stats")) {
@@ -320,6 +323,12 @@ try {
     );
     await capture(`detail-${width}`);
     await page.locator("#detail-edit").click();
+    assert.equal(
+      await page.locator('#edit-form [name="no_idle_expiry"]').isVisible(),
+      true,
+      "Admin can change inactivity expiry",
+    );
+    await page.locator('#edit-form [name="no_idle_expiry"]').check();
     await page.locator("#edit-code").fill("ma-moi");
     await page.locator('[name="confirm_rename"]').check();
     await capture(`edit-${width}`);
@@ -542,11 +551,13 @@ try {
   assert(await page.locator("#edit-dialog").isVisible());
   editFailure = false;
   await page.locator('#edit-form [name="label"]').fill("Admin đã sửa");
+  await page.locator('#edit-form [name="no_idle_expiry"]').check();
   await page.locator('#edit-form button[type="submit"]').click();
   await page.waitForSelector("#edit-dialog", { state: "hidden" });
   await ready();
   assert.equal(lastEdit.path, "/api/admin/links/tai-lieu/edit");
   assert.equal(lastEdit.body.slug, "ma-moi");
+  assert.equal(lastEdit.body.no_idle_expiry, true);
   assert.equal(
     await page.locator(":focus").getAttribute("data-slug"),
     "ma-moi",
@@ -643,6 +654,10 @@ try {
   );
   await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
   await capture("text-200-percent");
+  await page.locator('[data-directory-action="edit"]').first().click();
+  await page.locator('#edit-form [name="no_idle_expiry"]').waitFor();
+  await capture("edit-text-200-percent");
+  await page.keyboard.press("Escape");
   member = false;
   await page.goto(origin + "/admin/");
   await page

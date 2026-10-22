@@ -64,7 +64,17 @@ export async function tombstone(env: Env, slug: string, status = "deleted") {
 }
 export const publicLink = (l: Link) => ({
   ...l,
-  expires_at: Math.min(l.idle_expires_at, l.fixed_expires_at ?? Infinity),
+  expires_at: Number.isFinite(
+    Math.min(
+      l.no_idle_expiry ? Infinity : l.idle_expires_at,
+      l.fixed_expires_at ?? Infinity,
+    ),
+  )
+    ? Math.min(
+        l.no_idle_expiry ? Infinity : l.idle_expires_at,
+        l.fixed_expires_at ?? Infinity,
+      )
+    : null,
 });
 export async function maintenance(env: Env) {
   const now = Date.now();
@@ -99,7 +109,7 @@ export async function maintenance(env: Env) {
     ).bind(now - 7 * 86400000),
   ]);
   const expired = await env.DB.prepare(
-    "SELECT slug FROM links WHERE status='active' AND (fixed_expires_at<=? OR (?=0 AND idle_expires_at<=?)) LIMIT 10",
+    "SELECT slug FROM links WHERE status='active' AND (fixed_expires_at<=? OR (?=0 AND no_idle_expiry=0 AND idle_expires_at<=?)) LIMIT 10",
   )
     .bind(now, expiryHeld(p, now) || incident ? 1 : 0, now)
     .all<{ slug: string }>();

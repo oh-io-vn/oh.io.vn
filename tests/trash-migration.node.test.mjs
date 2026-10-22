@@ -16,6 +16,7 @@ const names = [
   "0003_rename_link_codes",
   "0004_admin_directory_indexes",
   "0005_admin_trash",
+  "0006_admin_no_idle_expiry",
 ];
 const sql = (name) =>
   readFileSync(new URL(`../migrations/${name}.sql`, import.meta.url), "utf8");
@@ -35,7 +36,7 @@ test("trash migration preserves existing rows; backup restore retains deletion g
     const before = source
       .prepare("SELECT slug,target,status,owner_id FROM links")
       .all();
-    source.exec(sql(names[4]));
+    names.slice(4).forEach((name) => source.exec(sql(name)));
     assert.deepEqual(
       source.prepare("SELECT slug,target,status,owner_id FROM links").all(),
       before,
@@ -44,6 +45,7 @@ test("trash migration preserves existing rows; backup restore retains deletion g
       source.prepare("SELECT clicks FROM analytics").get().clicks,
       2,
     );
+    source.exec("UPDATE links SET no_idle_expiry=1 WHERE slug='sample'");
     source.exec("UPDATE users SET deleted_at=1000 WHERE id='member'");
     const tables = Object.fromEntries(
       ["users", "links", "blocked_targets", "policy"].map((name) => [
@@ -64,6 +66,26 @@ test("trash migration preserves existing rows; backup restore retains deletion g
     assert.deepEqual(
       restored.prepare("SELECT * FROM links").all(),
       source.prepare("SELECT * FROM links").all(),
+    );
+    assert.equal(
+      restored
+        .prepare("SELECT no_idle_expiry FROM links WHERE slug='sample'")
+        .get().no_idle_expiry,
+      1,
+    );
+    const legacyTables = structuredClone(tables);
+    for (const row of legacyTables.links) delete row.no_idle_expiry;
+    writeFileSync(input, JSON.stringify({ version: 1, tables: legacyTables }));
+    execFileSync(process.execPath, ["scripts/restore.mjs", input, output], {
+      stdio: "pipe",
+    });
+    restored.exec(readFileSync(output, "utf8"));
+    assert.equal(
+      restored
+        .prepare("SELECT no_idle_expiry FROM links WHERE slug='sample'")
+        .get().no_idle_expiry,
+      0,
+      "legacy backups default to inactivity expiry",
     );
     assert.deepEqual(restored.prepare("PRAGMA foreign_key_check").all(), []);
     assert.throws(

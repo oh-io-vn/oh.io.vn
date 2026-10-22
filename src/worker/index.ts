@@ -525,6 +525,7 @@ app.all("/:slug", async (c) => {
   if (
     (l.fixed_expires_at !== null && l.fixed_expires_at <= now) ||
     (!expiryHeld(p, now) &&
+      !l.no_idle_expiry &&
       l.idle_expires_at <= now &&
       !(await incidentHold(c.env)))
   )
