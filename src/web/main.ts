@@ -110,6 +110,43 @@ function setControlLabel(control: HTMLElement, label: string, name: IconName) {
   control.innerHTML = icon(name);
   control.append(text);
 }
+function configureTheme() {
+  const button = document.querySelector<HTMLButtonElement>("#theme-toggle");
+  if (!button) return;
+  const root = document.documentElement;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const updateButton = () => {
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    const label = `Bật giao diện ${next === "dark" ? "tối" : "sáng"}`;
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.innerHTML = `${icon(next === "dark" ? "moon" : "sun")}<span class="sr-only">${label}</span>`;
+  };
+  const updateThemeColor = () => {
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute(
+        "content",
+        root.dataset.theme === "dark" ? "#11161d" : "#fafafa",
+      );
+  };
+  updateButton();
+  button.addEventListener("click", () => {
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
+    root.dataset.themePreference = next;
+    updateThemeColor();
+    updateButton();
+    try {
+      localStorage.setItem("ohio-theme", next);
+    } catch {
+      // The chosen theme still applies until this page is closed.
+    }
+  });
+  media.addEventListener("change", () => {
+    if (root.dataset.themePreference === "system") updateButton();
+  });
+}
 function message(selector: string, value: string, error = false) {
   const el = $(selector);
   if (el) {
@@ -361,7 +398,8 @@ async function home() {
       execution: "execute",
       size:
         $("#verification-widget").clientWidth < 300 ? "compact" : "flexible",
-      theme: "light",
+      theme:
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light",
       language: "vi",
       retry: "never",
       "refresh-expired": "auto",
@@ -1654,6 +1692,7 @@ async function admin() {
     }
   });
 }
+configureTheme();
 configureDialogs();
 const retryService =
   document.querySelector<HTMLButtonElement>("#retry-service");

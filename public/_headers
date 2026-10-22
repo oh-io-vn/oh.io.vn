@@ -15,3 +15,6 @@
 
 /deployment.json
   X-Robots-Tag: noindex, nofollow
+
+/theme-init.js
+  Cache-Control: public, max-age=0, must-revalidate

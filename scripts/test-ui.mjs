@@ -16,6 +16,7 @@ const browser = await chromium.launch({ channel: "chrome", headless: true });
 try {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
+    colorScheme: "light",
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const page = await context.newPage();
@@ -1304,7 +1305,108 @@ try {
   await page.locator(".brand").click();
   await page.waitForURL(origin + "/");
 
-  // Match the existing palette against WCAG AA normal-text contrast requirements.
+  // Follow system appearance until a choice is saved, then keep that choice
+  // across reloads and pages. Review both palettes at the supported widths.
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.evaluate(() => localStorage.removeItem("ohio-theme"));
+  await page.reload();
+  await page.waitForFunction(
+    () => document.documentElement.dataset.themePreference === "system",
+  );
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
+  assert.equal(
+    await page.locator("#theme-toggle").getAttribute("aria-label"),
+    "Bật giao diện tối",
+  );
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "dark",
+  );
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("ohio-theme")),
+    null,
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "light",
+  );
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: width < 700 ? 844 : 1000 });
+    measurements.push(await measure(`theme-light-home-${width}`));
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/theme-light-home-${width}.png`,
+      fullPage: true,
+    });
+  }
+
+  await page.locator("#theme-toggle").click();
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+  assert.equal(
+    await page.evaluate(() => localStorage.getItem("ohio-theme")),
+    "dark",
+  );
+  assert.equal(
+    await page.locator('meta[name="theme-color"]').getAttribute("content"),
+    "#11161d",
+  );
+  await page.emulateMedia({ colorScheme: "light" });
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+  await page.reload();
+  await page.waitForFunction(
+    () => document.documentElement.dataset.theme === "dark",
+  );
+  assert.equal(
+    await page.locator("#theme-toggle").getAttribute("aria-label"),
+    "Bật giao diện sáng",
+  );
+  for (const width of [1440, 768, 390, 320]) {
+    await page.setViewportSize({ width, height: width < 700 ? 844 : 1000 });
+    measurements.push(await measure(`theme-dark-home-${width}`));
+    await page.screenshot({
+      animations: "disabled",
+      path: `${out}/theme-dark-home-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 320, height: 844 });
+  await page.evaluate(() => (document.documentElement.style.fontSize = "200%"));
+  measurements.push(await measure("theme-dark-home-text-200-320"));
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/theme-dark-home-text-200-320.png`,
+    fullPage: true,
+  });
+  await page.evaluate(() =>
+    document.documentElement.style.removeProperty("font-size"),
+  );
+
+  await goto("/dashboard/");
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/theme-dark-dashboard.png`,
+    fullPage: true,
+  });
+  await goto("/admin/");
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/theme-dark-admin.png`,
+    fullPage: true,
+  });
+  await goto("/report/");
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "dark");
+  await page.screenshot({
+    animations: "disabled",
+    path: `${out}/theme-dark-report.png`,
+    fullPage: true,
+  });
+  await goto("/");
+  await page.locator("#theme-toggle").click();
+  assert.equal(await page.locator("html").getAttribute("data-theme"), "light");
+
+  // Both palettes meet WCAG AA normal-text contrast requirements.
   const contrast = (a, b) => {
     const luminance = (hex) => {
       let value = hex.replace(/^#/, "");
@@ -1320,31 +1422,49 @@ try {
       y = luminance(b);
     return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
   };
-  const palette = await page.evaluate(() => {
-    const styles = getComputedStyle(document.documentElement);
-    return Object.fromEntries(
-      [
-        "text",
-        "canvas",
-        "muted",
-        "surface",
-        "blue",
-        "danger",
-        "danger-soft",
-      ].map((name) => [name, styles.getPropertyValue(`--${name}`).trim()]),
-    );
-  });
-  for (const [ink, paper] of [
-    [palette.text, palette.canvas],
-    [palette.muted, palette.surface],
-    [palette.blue, palette.surface],
-    [palette.surface, palette.blue],
-    [palette.danger, palette["danger-soft"]],
-  ])
-    assert(
-      contrast(ink, paper) >= 4.5,
-      `Insufficient contrast: ${ink}/${paper}`,
-    );
+  const readPalette = () =>
+    page.evaluate(() => {
+      const styles = getComputedStyle(document.documentElement);
+      return Object.fromEntries(
+        [
+          "text",
+          "canvas",
+          "muted",
+          "surface",
+          "blue",
+          "blue-ink",
+          "blue-soft",
+          "primary",
+          "on-action",
+          "danger",
+          "danger-soft",
+          "danger-action",
+          "success",
+          "success-soft",
+        ].map((name) => [name, styles.getPropertyValue(`--${name}`).trim()]),
+      );
+    });
+  for (const theme of ["light", "dark"]) {
+    if ((await page.locator("html").getAttribute("data-theme")) !== theme)
+      await page.locator("#theme-toggle").click();
+    const palette = await readPalette();
+    for (const [ink, paper] of [
+      [palette.text, palette.canvas],
+      [palette.muted, palette.surface],
+      [palette.blue, palette.surface],
+      [palette["blue-ink"], palette["blue-soft"]],
+      [palette["on-action"], palette.primary],
+      [palette.danger, palette["danger-soft"]],
+      [palette["on-action"], palette["danger-action"]],
+      [palette.success, palette["success-soft"]],
+    ])
+      assert(
+        contrast(ink, paper) >= 4.5,
+        `${theme}: insufficient contrast ${ink}/${paper}`,
+      );
+  }
+  if ((await page.locator("html").getAttribute("data-theme")) === "dark")
+    await page.locator("#theme-toggle").click();
   assert.equal(
     consoleErrors.filter(
       (error) => !error.includes("the server responded with a status of 503"),

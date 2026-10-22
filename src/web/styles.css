@@ -20,10 +20,22 @@
   --blue: #245bdb;
   --blue-hover: #1949bc;
   --blue-soft: #eff4ff;
+  --blue-soft-border: #d1dffc;
+  --blue-ink: #244789;
+  --primary: #245bdb;
+  --primary-hover: #1949bc;
+  --on-action: #ffffff;
   --danger: #a53232;
   --danger-soft: #fff4f3;
+  --danger-border: #eac9c7;
+  --danger-action: #a53232;
   --success: #216443;
   --success-soft: #f0f8f3;
+  --success-border: #c2ddcc;
+  --action-text: #4a4f58;
+  --prose-text: #4d535e;
+  --scrollbar-thumb: #b9bdc5;
+  --selection: #dbe7ff;
   --radius-control: 8px;
   --radius-surface: 12px;
   --space-1: 4px;
@@ -43,6 +55,68 @@
   --icon-gap: 8px;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #11161d;
+  --surface: #1a2029;
+  --text: #edf2f8;
+  --muted: #aeb9c8;
+  --line: #323d49;
+  --control-line: #718095;
+  --soft: #242c37;
+  --blue: #a8c1ff;
+  --blue-hover: #c4d4ff;
+  --blue-soft: #222e47;
+  --blue-soft-border: #3a4b6a;
+  --blue-ink: #c3d3fb;
+  --primary: #416abf;
+  --primary-hover: #5079cc;
+  --on-action: #ffffff;
+  --danger: #ffaaa6;
+  --danger-soft: #3b2729;
+  --danger-border: #6c4344;
+  --danger-action: #a93a3e;
+  --success: #94d6ae;
+  --success-soft: #21372a;
+  --success-border: #3a5b46;
+  --action-text: #d5deea;
+  --prose-text: #d0d9e4;
+  --scrollbar-thumb: #5d6878;
+  --selection: #31466b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --canvas: #11161d;
+    --surface: #1a2029;
+    --text: #edf2f8;
+    --muted: #aeb9c8;
+    --line: #323d49;
+    --control-line: #718095;
+    --soft: #242c37;
+    --blue: #a8c1ff;
+    --blue-hover: #c4d4ff;
+    --blue-soft: #222e47;
+    --blue-soft-border: #3a4b6a;
+    --blue-ink: #c3d3fb;
+    --primary: #416abf;
+    --primary-hover: #5079cc;
+    --on-action: #ffffff;
+    --danger: #ffaaa6;
+    --danger-soft: #3b2729;
+    --danger-border: #6c4344;
+    --danger-action: #a93a3e;
+    --success: #94d6ae;
+    --success-soft: #21372a;
+    --success-border: #3a5b46;
+    --action-text: #d5deea;
+    --prose-text: #d0d9e4;
+    --scrollbar-thumb: #5d6878;
+    --selection: #31466b;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -55,13 +129,13 @@ body {
 html,
 dialog {
   scrollbar-width: thin;
-  scrollbar-color: #b9bdc5 transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 html:has(dialog[open]) {
   overflow: hidden;
 }
 ::selection {
-  background: #dbe7ff;
+  background: var(--selection);
   color: var(--text);
 }
 ::-webkit-scrollbar {
@@ -72,7 +146,7 @@ html:has(dialog[open]) {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #b9bdc5;
+  background: var(--scrollbar-thumb);
   border-radius: 8px;
 }
 ::-webkit-scrollbar-button {
@@ -161,7 +235,7 @@ main:focus {
   padding: 12px 20px;
   border-radius: var(--radius-control);
   background: var(--text);
-  color: white;
+  color: var(--canvas);
 }
 .skip-link:focus {
   opacity: 1;
@@ -204,8 +278,8 @@ main:focus {
   width: 32px;
   height: 32px;
   border-radius: 9px;
-  color: white;
-  background: var(--blue);
+  color: var(--on-action);
+  background: var(--primary);
   margin-right: 10px;
 }
 .brand-mark svg {
@@ -214,6 +288,32 @@ main:focus {
 }
 .header-inner > nav {
   margin-left: auto;
+}
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-4);
+}
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+}
+.theme-toggle:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+.theme-toggle .ui-icon {
+  width: var(--icon-md);
+  height: var(--icon-md);
 }
 nav {
   display: flex;
@@ -244,7 +344,7 @@ nav a {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-left: var(--space-4);
+  margin-left: 0;
 }
 .user-menu > a[href="/auth/login"] {
   background: var(--text);
@@ -253,7 +353,7 @@ nav a {
   border-color: var(--text);
 }
 .user-menu > a[href="/auth/login"]:hover {
-  background: #3c3e43;
+  filter: brightness(0.92);
 }
 
 main {
@@ -435,13 +535,13 @@ input[type="datetime-local"] {
   white-space: nowrap;
 }
 .primary {
-  background: var(--blue);
-  color: white;
-  border-color: var(--blue);
+  background: var(--primary);
+  color: var(--on-action);
+  border-color: var(--primary);
 }
 .primary:hover {
-  background: var(--blue-hover);
-  border-color: var(--blue-hover);
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
 }
 .secondary {
   background: var(--surface);
@@ -621,10 +721,10 @@ summary::-webkit-details-marker {
 }
 .notice {
   line-height: 1.7;
-  border: 1px solid #d1dffc;
+  border: 1px solid var(--blue-soft-border);
   border-radius: var(--radius-control);
   background: var(--blue-soft);
-  color: #244789;
+  color: var(--blue-ink);
   padding: 14px 16px;
   margin: 0 0 var(--space-6);
   text-align: left;
@@ -632,7 +732,7 @@ summary::-webkit-details-marker {
   overflow-wrap: anywhere;
 }
 .notice.error {
-  border-color: #eac9c7;
+  border-color: var(--danger-border);
   background: var(--danger-soft);
   color: var(--danger);
 }
@@ -646,7 +746,7 @@ form .notice {
   margin-top: var(--space-6);
   padding: var(--space-4);
   background: var(--success-soft);
-  border: 1px solid #c2ddcc;
+  border: 1px solid var(--success-border);
   border-radius: var(--radius-control);
 }
 .result:focus {
@@ -902,7 +1002,7 @@ dialog {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-control);
-  color: #4a4f58;
+  color: var(--action-text);
   font-size: 0.8125rem;
   font-weight: 500;
 }
@@ -919,16 +1019,18 @@ dialog {
   color: var(--danger);
 }
 #confirm-delete {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-action);
+  border-color: var(--danger-action);
+  color: var(--on-action);
 }
 .danger-button {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-action);
+  border-color: var(--danger-action);
+  color: var(--on-action);
 }
 .danger-button:hover {
-  background: var(--danger);
-  border-color: var(--danger);
+  background: var(--danger-action);
+  border-color: var(--danger-action);
   filter: brightness(0.92);
 }
 #confirm-delete:hover {
@@ -953,7 +1055,7 @@ dialog {
 }
 .prose p,
 .prose li {
-  color: #4d535e;
+  color: var(--prose-text);
 }
 .prose .lead {
   font-size: 1.125rem;
@@ -983,7 +1085,7 @@ dialog {
   min-height: 44px;
 }
 .prose .primary {
-  color: white;
+  color: var(--on-action);
 }
 .report-actions {
   display: flex;
@@ -1070,7 +1172,7 @@ dialog h2 {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: #b9bdc5 transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .dialog-body > :last-child {
   margin-bottom: 0;
@@ -1339,7 +1441,7 @@ td {
     font-size: 0.8125rem;
   }
   .user-menu {
-    margin-left: 4px;
+    margin-left: 0;
     gap: 0;
   }
   .user-menu .quiet {
@@ -1459,7 +1561,7 @@ td {
   /* Separate account controls from primary navigation so enlarged text can wrap. */
   .header-inner {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px 12px;
   }
   .header-inner > .brand {
@@ -1467,17 +1569,21 @@ td {
     grid-row: 1;
     min-height: 44px;
   }
-  .header-inner > .user-menu {
-    grid-column: 2;
-    grid-row: 1;
+  .header-inner > .header-tools {
+    grid-column: 1;
+    grid-row: 2;
     min-width: 0;
     margin: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+  .user-menu {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
   .header-inner > nav {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 1;
+    grid-row: 3;
     margin: 0;
     border-top: 1px solid var(--line);
     padding-top: var(--space-2);
@@ -1574,7 +1680,7 @@ p,
   gap: var(--space-3);
   margin-top: var(--space-4);
   padding: var(--space-4);
-  border: 1px solid #eac9c7;
+  border: 1px solid var(--danger-border);
   border-radius: var(--radius-control);
   background: var(--danger-soft);
   color: var(--danger);

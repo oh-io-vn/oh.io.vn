@@ -31,6 +31,8 @@ import {
   LockKeyhole,
   LockKeyholeOpen,
   ChevronDown,
+  Moon,
+  Sun,
 } from "lucide";
 
 const icons = {
@@ -63,6 +65,8 @@ const icons = {
   lock: LockKeyhole,
   unlock: LockKeyholeOpen,
   chevron: ChevronDown,
+  moon: Moon,
+  sun: Sun,
 };
 
 /** @param {string | number | undefined} value */

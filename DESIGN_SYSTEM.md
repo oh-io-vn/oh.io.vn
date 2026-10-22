@@ -35,6 +35,21 @@ and [ui-ux-pro-max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill/blob
   appearance (opacity 0.92 to 1), disabled for reduced motion. Dialog surfaces
   remain opaque; animate their inner content only.
 
+### Theme modes
+
+- Keep the current light palette as the default when the device uses light mode.
+- Dark canvas is `#11161d`, surface is `#1a2029`, text is `#edf2f8`, muted
+  text is `#aeb9c8`, and dividers are `#323d49`.
+- Dark links use `#a8c1ff`. Primary actions use the deeper `#416abf` with white
+  text so interactive labels remain readable. Keep error and success text,
+  surfaces, borders and action fills in separate semantic tokens.
+- The header control follows the device setting until a person chooses a mode.
+  Save explicit light/dark choices in local browser storage and restore them
+  before the page paints. The choice applies across all seven pages.
+- Native inputs, dialogs, scrollbars and browser theme color follow the selected
+  mode. Do not change spacing, hierarchy, copy or information architecture
+  between themes.
+
 ## Components and behavior
 
 ### Current refinement brief
